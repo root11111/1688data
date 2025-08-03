@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1688供应商信息爬虫</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-success {
+            background-color: #28a745;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        .btn-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .btn-warning:hover {
+            background-color: #e0a800;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .success {
+            color: #155724;
+            background-color: #d4edda;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .data-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .data-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .export-info {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .file-link {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .file-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>1688供应商信息爬虫</h1>
+        
+        <div class="form-group">
+            <label for="url">1688搜索页面URL:</label>
+            <input type="text" id="url" placeholder="请输入1688搜索页面的URL" 
+                   value="https://www.1688.com/zw/page.html?spm=a312h.2018_new_sem.dh_001.2.2f6f5576Ce3nO9&hpageId=old-sem-pc-list&cosite=baidujj_pz&keywords=%E5%90%88%E8%82%A5%E9%94%82%E7%94%B5%E6%B1%A0%E7%BB%84&trackid=885662561117990122602&location=re&ptid=01770000000464ce963d082f6fbe7ca7&exp=pcSemFumian%3AC%3BpcDacuIconExp%3AA%3BpcCpxGuessExp%3AB%3BpcCpxCpsExp%3AB%3Bqztf%3AE%3Bwysiwyg%3AB%3BhotBangdanExp%3AB%3BpcSemWwClick%3AA%3BpcSemDownloadPlugin%3AA%3Basst%3AF&sortType=&descendOrder=&province=&city=&priceStart=&priceEnd=&dis=&provinceValue=%E6%89%80%E5%9C%A8%E5%9C%B0%E5%8C%BA&p_rs=true">
+        </div>
+        
+        <div class="form-group">
+            <label for="pages">爬取页数:</label>
+            <input type="number" id="pages" value="1" min="1" max="10">
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="exportExcel" checked>
+            <label for="exportExcel">自动导出到Excel文件</label>
+        </div>
+        
+        <div>
+            <button onclick="startCrawl()">开始爬取</button>
+            <button onclick="testCrawl()">测试爬取</button>
+            <button onclick="checkHealth()">检查服务状态</button>
+            <button class="btn-success" onclick="exportCurrentData()" id="exportBtn" style="display: none;">导出当前数据到Excel</button>
+        </div>
+        
+        <div id="result" class="result" style="display: none;">
+            <div id="loading" class="loading">正在爬取数据，请稍候...</div>
+            <div id="error" class="error" style="display: none;"></div>
+            <div id="success" class="success" style="display: none;"></div>
+            <div id="export-info" class="export-info" style="display: none;"></div>
+            <div id="data-container"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = null;
+
+        function startCrawl() {
+            const url = document.getElementById('url').value;
+            const pages = document.getElementById('pages').value;
+            const exportExcel = document.getElementById('exportExcel').checked;
+            
+            if (!url) {
+                alert('请输入URL');
+                return;
+            }
+            
+            showResult();
+            showLoading();
+            hideError();
+            hideSuccess();
+            hideExportInfo();
+            
+            fetch(`/api/crawler/1688?url=${encodeURIComponent(url)}&pages=${pages}&exportToExcel=${exportExcel}`)
+                .then(response => response.json())
+                .then(data => {
+                    hideLoading();
+                    currentData = data.data;
+                    
+                    if (data.success) {
+                        showSuccess(`爬取成功！共获取 ${data.total} 条供应商信息`);
+                        displayData(data.data);
+                        
+                        if (data.excelFilePath) {
+                            showExportInfo(`Excel文件已导出到: ${data.excelFilePath}`);
+                        }
+                        
+                        if (data.data && data.data.length > 0) {
+                            document.getElementById('exportBtn').style.display = 'inline-block';
+                        }
+                    } else {
+                        showError(`爬取失败: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    showError(`请求失败: ${error.message}`);
+                });
+        }
+        
+        function testCrawl() {
+            const exportExcel = document.getElementById('exportExcel').checked;
+            
+            showResult();
+            showLoading();
+            hideError();
+            hideSuccess();
+            hideExportInfo();
+            
+            fetch(`/api/crawler/1688/test?exportToExcel=${exportExcel}`)
+                .then(response => response.json())
+                .then(data => {
+                    hideLoading();
+                    currentData = data.data;
+                    
+                    if (data.success) {
+                        showSuccess(`测试爬取成功！共获取 ${data.total} 条供应商信息`);
+                        displayData(data.data);
+                        
+                        if (data.excelFilePath) {
+                            showExportInfo(`Excel文件已导出到: ${data.excelFilePath}`);
+                        }
+                        
+                        if (data.data && data.data.length > 0) {
+                            document.getElementById('exportBtn').style.display = 'inline-block';
+                        }
+                    } else {
+                        showError(`测试爬取失败: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    showError(`请求失败: ${error.message}`);
+                });
+        }
+        
+        function exportCurrentData() {
+            if (!currentData || currentData.length === 0) {
+                alert('没有数据可导出');
+                return;
+            }
+            
+            fetch('/api/crawler/export', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(currentData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showExportInfo(`Excel文件已导出到: ${data.excelFilePath}`);
+                } else {
+                    showError(`导出失败: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                showError(`导出请求失败: ${error.message}`);
+            });
+        }
+        
+        function checkHealth() {
+            fetch('/api/crawler/health')
+                .then(response => response.json())
+                .then(data => {
+                    alert(`服务状态: ${data.status}\n${data.message}`);
+                })
+                .catch(error => {
+                    alert(`检查服务状态失败: ${error.message}`);
+                });
+        }
+        
+        function displayData(data) {
+            const container = document.getElementById('data-container');
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p>没有获取到数据</p>';
+                return;
+            }
+            
+            let html = '<table class="data-table">';
+            html += '<tr><th>公司名称</th><th>联系人</th><th>联系电话</th><th>地址</th><th>主营产品</th><th>价格</th><th>爬取时间</th></tr>';
+            
+            data.forEach(item => {
+                html += '<tr>';
+                html += `<td>${item.companyName || '-'}</td>`;
+                html += `<td>${item.contactPerson || '-'}</td>`;
+                html += `<td>${item.phoneNumber || '-'}</td>`;
+                html += `<td>${item.address || '-'}</td>`;
+                html += `<td>${item.mainProducts || '-'}</td>`;
+                html += `<td>${item.price || '-'}</td>`;
+                html += `<td>${item.crawlTime || '-'}</td>`;
+                html += '</tr>';
+            });
+            
+            html += '</table>';
+            container.innerHTML = html;
+        }
+        
+        function showResult() {
+            document.getElementById('result').style.display = 'block';
+        }
+        
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+        
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+        
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+        }
+        
+        function hideSuccess() {
+            document.getElementById('success').style.display = 'none';
+        }
+        
+        function showExportInfo(message) {
+            const exportDiv = document.getElementById('export-info');
+            exportDiv.innerHTML = message;
+            exportDiv.style.display = 'block';
+        }
+        
+        function hideExportInfo() {
+            document.getElementById('export-info').style.display = 'none';
+        }
+    </script>
+</body>
+</html> 
