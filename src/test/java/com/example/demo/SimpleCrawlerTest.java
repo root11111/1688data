@@ -41,12 +41,18 @@ public class SimpleCrawlerTest {
             if (!data.isEmpty()) {
                 // 导出Excel
                 System.out.println("📊 开始导出Excel...");
-                boolean success = excelExportService.exportToDefaultPath(data);
-                if (success) {
-                    String fileName = excelExportService.generateDefaultFileName();
-                    System.out.println("✅ Excel导出成功: exports/" + fileName);
-                } else {
-                    System.out.println("❌ Excel导出失败");
+                try {
+                    boolean success = excelExportService.exportToDefaultPath(data);
+                    if (success) {
+                        String fileName = excelExportService.generateDefaultFileName();
+                        System.out.println("✅ Excel导出成功: exports/" + fileName);
+                        System.out.println("📁 文件位置: " + System.getProperty("user.dir") + "/exports/" + fileName);
+                    } else {
+                        System.out.println("❌ Excel导出失败");
+                    }
+                } catch (Exception e) {
+                    System.err.println("❌ Excel导出过程中出现错误: " + e.getMessage());
+                    e.printStackTrace();
                 }
                 
                 // 显示前3条数据

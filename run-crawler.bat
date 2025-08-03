@@ -1,14 +1,11 @@
 @echo off
-echo 启动1688爬虫...
-echo.
+echo 设置Java环境...
+set JAVA_HOME=D:\soft\jdk17
 
-REM 编译并运行爬虫
 echo 编译项目...
-call mvnw clean compile
+call mvnw compile
 
-echo 运行爬虫...
-call mvnw spring-boot:run -Dspring-boot.run.arguments="--crawl"
+echo 运行爬虫测试...
+call mvnw exec:java -Dexec.mainClass="com.example.demo.SimpleCrawlerTest" -Dexec.args=""
 
-echo.
-echo 爬虫完成！
 pause 

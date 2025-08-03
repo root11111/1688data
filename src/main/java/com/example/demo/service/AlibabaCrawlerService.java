@@ -65,13 +65,13 @@ public class AlibabaCrawlerService {
                 // 3. 滚动网页
                 scrollPage(driver);
 
-                // 4. 获取商品列表 - 使用您提供的XPath
+                // 4. 获取商品列表 - 使用八爪鱼的方式：不固定元素列表，动态获取
                 List<WebElement> items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
                 System.out.println("找到 " + items.size() + " 个商品");
-
+                
                 for (int i = 0; i < items.size(); i++) {
                     try {
-                        // 重新获取元素，防止StaleElementReferenceException
+                        // 重新获取元素列表，防止StaleElementReferenceException
                         items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
                         if (i >= items.size()) break;
                         
@@ -85,12 +85,18 @@ public class AlibabaCrawlerService {
                         ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", item);
                         antiDetectionService.randomWait(1000, 2000);
 
-                        // 获取商品链接 - 使用您提供的XPath
-                        String productUrl = getProductUrl(item);
-                        if (productUrl != null && !productUrl.isEmpty()) {
-                            // 在新标签页中打开链接
-                            ((JavascriptExecutor) driver).executeScript("window.open(arguments[0]);", productUrl);
-
+                        // 按照八爪鱼的方式：点击列表链接
+                        System.out.println("🖱️ 尝试点击第 " + (i + 1) + " 个商品链接...");
+                        
+                        // 在商品卡片中查找链接元素
+                        WebElement linkElement = item.findElement(By.xpath(".//a[contains(@href, 'dj.1688.com/ci_bb')]"));
+                        
+                        // 直接点击链接元素
+                        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", linkElement);
+                        antiDetectionService.randomWait(2000, 4000);
+                        
+                        // 检查是否打开了新页面
+                        if (driver.getWindowHandles().size() > 1) {
                             // 切换到新标签页
                             for (String windowHandle : driver.getWindowHandles()) {
                                 if (!windowHandle.equals(mainWindow)) {
@@ -98,52 +104,82 @@ public class AlibabaCrawlerService {
                                     break;
                                 }
                             }
+                            
+                            System.out.println("✅ 成功打开商品详情页");
+                        } else {
+                            System.out.println("⚠️ 点击链接未打开新页面，尝试获取链接直接打开");
+                            // 尝试获取链接直接打开
+                            String productUrl = getProductUrl(item);
+                            if (productUrl != null && !productUrl.isEmpty()) {
+                                ((JavascriptExecutor) driver).executeScript("window.open(arguments[0]);", productUrl);
+                                
+                                // 切换到新标签页
+                                for (String windowHandle : driver.getWindowHandles()) {
+                                    if (!windowHandle.equals(mainWindow)) {
+                                        driver.switchTo().window(windowHandle);
+                                        break;
+                                    }
+                                }
+                            } else {
+                                System.err.println("❌ 无法获取商品链接，跳过此商品");
+                                continue;
+                            }
+                        }
 
-                            // 等待新页面加载
+                        // 切换到新标签页
+                        for (String windowHandle : driver.getWindowHandles()) {
+                            if (!windowHandle.equals(mainWindow)) {
+                                driver.switchTo().window(windowHandle);
+                                break;
+                            }
+                        }
+
+                        // 等待新页面加载
+                        antiDetectionService.randomWait(2000, 4000);
+                        
+                        // 检查详情页是否有验证码
+                        if (captchaHandler.checkForCaptcha(driver)) {
+                            System.out.println("⚠️  详情页检测到验证码！");
+                            if (!captchaHandler.handleCaptcha(driver)) {
+                                captchaHandler.waitForManualCaptcha();
+                            }
+                        }
+
+                        // 等待新页面加载并提取详细信息
+                        try {
+                            // 等待联系方式按钮出现
+                            WebElement contactButton = wait.until(ExpectedConditions.elementToBeClickable(
+                                By.xpath("//a[contains(text(), '联系方式')]")));
+                            
+                            // 6. 点击联系方式按钮
+                            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", contactButton);
                             antiDetectionService.randomWait(2000, 4000);
                             
-                            // 检查详情页是否有验证码
+                            // 再次检查点击联系方式后是否出现验证码
                             if (captchaHandler.checkForCaptcha(driver)) {
-                                System.out.println("⚠️  详情页检测到验证码！");
+                                System.out.println("⚠️  点击联系方式后检测到验证码！");
                                 if (!captchaHandler.handleCaptcha(driver)) {
                                     captchaHandler.waitForManualCaptcha();
                                 }
                             }
-
-                            // 等待新页面加载并提取详细信息
-                            try {
-                                // 等待联系方式按钮出现
-                                WebElement contactButton = wait.until(ExpectedConditions.elementToBeClickable(
-                                    By.xpath("//a[contains(text(), '联系方式')]")));
-                                
-                                // 6. 点击联系方式按钮
-                                ((JavascriptExecutor) driver).executeScript("arguments[0].click();", contactButton);
-                                antiDetectionService.randomWait(2000, 4000);
-                                
-                                // 再次检查点击联系方式后是否出现验证码
-                                if (captchaHandler.checkForCaptcha(driver)) {
-                                    System.out.println("⚠️  点击联系方式后检测到验证码！");
-                                    if (!captchaHandler.handleCaptcha(driver)) {
-                                        captchaHandler.waitForManualCaptcha();
-                                    }
-                                }
-                                
-                                // 7. 提取联系方式数据
-                                extractContactInfo(driver, info);
-                                
-                            } catch (Exception e) {
-                                System.err.println("提取详细信息失败: " + e.getMessage());
-                            }
-
-                            // 关闭当前标签页，切换回主窗口
-                            driver.close();
-                            driver.switchTo().window(mainWindow);
-                        } else {
-                            System.err.println("未获取到商品链接，跳过详情页访问");
+                            
+                            // 7. 提取联系方式数据
+                            extractContactInfo(driver, info);
+                            
+                        } catch (Exception e) {
+                            System.err.println("提取详细信息失败: " + e.getMessage());
                         }
 
+                        // 关闭当前标签页，切换回主窗口
+                        driver.close();
+                        driver.switchTo().window(mainWindow);
+
+                        // 即使没有成功进入详情页，也保存基本信息
                         manufacturerInfos.add(info);
-                        System.out.println("成功提取第 " + (i + 1) + " 个商品信息: " + info.getCompanyName());
+                        System.out.println("✅ 成功提取第 " + (i + 1) + " 个商品信息: " + info.getCompanyName());
+                        System.out.println("   📝 商品标题: " + info.getProductTitle());
+                        System.out.println("   💰 价格: " + info.getPrice());
+                        System.out.println("   📞 联系方式: " + info.getContactInfo());
 
                         // 防止被封，随机等待 - 增加等待时间
                         antiDetectionService.randomWait(5000, 12000);
@@ -175,17 +211,25 @@ public class AlibabaCrawlerService {
 
     private String getProductUrl(WebElement item) {
         try {
-            // 使用您提供的XPath获取链接
+            // 使用JavaScript获取链接，避免堆栈溢出
             WebElement link = item.findElement(By.xpath(".//a[contains(@href, 'dj.1688.com/ci_bb')]"));
-            return link.getAttribute("href");
-        } catch (Exception e) {
+            
+            // 直接尝试获取href属性，如果失败则跳过
             try {
-                // 备用方案：查找任何链接
-                WebElement link = item.findElement(By.xpath(".//a"));
-                return link.getAttribute("href");
-            } catch (Exception e2) {
-                return null;
+                String href = link.getAttribute("href");
+                if (href != null && !href.isEmpty()) {
+                    System.out.println("🔍 找到商品链接: " + href);
+                    return href;
+                }
+            } catch (Exception e) {
+                System.out.println("⚠️ 获取href属性失败，跳过此商品");
             }
+            
+            System.out.println("❌ 未找到有效的商品链接");
+            return null;
+        } catch (Exception e) {
+            System.err.println("获取商品链接时出错: " + e.getMessage());
+            return null;
         }
     }
 
@@ -195,7 +239,7 @@ public class AlibabaCrawlerService {
         info.setSourceUrl(sourceUrl);
 
         try {
-            // 提取商品标题
+            // 提取商品标题 - 使用您提供的XPath
             WebElement titleElement = item.findElement(By.xpath(".//a[contains(@href, 'dj.1688.com/ci_bb')]"));
             info.setProductTitle(titleElement.getText().trim());
         } catch (Exception e) {
@@ -210,47 +254,8 @@ public class AlibabaCrawlerService {
             info.setPrice("未获取到价格信息");
         }
 
-        try {
-            // 提取公司名称 - 尝试多种选择器
-            WebElement companyElement = null;
-            
-            // 尝试多种公司名称选择器
-            String[] companySelectors = {
-                ".//div[contains(@class, 'company')]",
-                ".//div[contains(@class, 'company-name')]",
-                ".//div[contains(@class, 'supplier')]",
-                ".//div[contains(@class, 'supplier-name')]",
-                ".//a[contains(@class, 'company')]",
-                ".//span[contains(@class, 'company')]",
-                ".//div[contains(text(), '公司')]",
-                ".//div[contains(text(), '企业')]",
-                ".//span[contains(text(), '公司')]",
-                ".//span[contains(text(), '企业')]",
-                ".//div[contains(@class, 'title')]//span",
-                ".//div[contains(@class, 'title')]//div",
-                ".//div[contains(@class, 'item')]//div[contains(@class, 'company')]",
-                ".//div[contains(@class, 'item')]//div[contains(@class, 'supplier')]"
-            };
-            
-            for (String selector : companySelectors) {
-                try {
-                    companyElement = item.findElement(By.xpath(selector));
-                    if (companyElement != null && !companyElement.getText().trim().isEmpty()) {
-                        break;
-                    }
-                } catch (Exception e) {
-                    // 继续尝试下一个选择器
-                }
-            }
-            
-            if (companyElement != null) {
-                info.setCompanyName(companyElement.getText().trim());
-            } else {
-                info.setCompanyName("未获取到公司名称");
-            }
-        } catch (Exception e) {
-            info.setCompanyName("未获取到公司名称");
-        }
+        // 公司名称将在详情页的联系方式中获取
+        info.setCompanyName("待从详情页获取");
 
         return info;
     }

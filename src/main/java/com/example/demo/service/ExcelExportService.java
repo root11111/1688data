@@ -133,15 +133,34 @@ public class ExcelExportService {
      * @return 是否导出成功
      */
     public boolean exportToDefaultPath(List<ManufacturerInfo> manufacturers) {
-        String fileName = generateDefaultFileName();
-        String filePath = "exports/" + fileName;
-        
-        // 确保导出目录存在
-        java.io.File exportDir = new java.io.File("exports");
-        if (!exportDir.exists()) {
-            exportDir.mkdirs();
+        try {
+            String fileName = generateDefaultFileName();
+            String filePath = "exports/" + fileName;
+            
+            System.out.println("📁 准备导出Excel文件...");
+            System.out.println("📄 文件名: " + fileName);
+            System.out.println("📂 文件路径: " + filePath);
+            
+            // 确保导出目录存在
+            java.io.File exportDir = new java.io.File("exports");
+            if (!exportDir.exists()) {
+                boolean created = exportDir.mkdirs();
+                System.out.println("📁 创建导出目录: " + (created ? "成功" : "失败"));
+            } else {
+                System.out.println("📁 导出目录已存在");
+            }
+            
+            boolean result = exportToExcel(manufacturers, filePath);
+            if (result) {
+                java.io.File file = new java.io.File(filePath);
+                System.out.println("📊 文件大小: " + file.length() + " 字节");
+                System.out.println("📊 数据条数: " + manufacturers.size());
+            }
+            return result;
+        } catch (Exception e) {
+            System.err.println("❌ 导出到默认路径失败: " + e.getMessage());
+            e.printStackTrace();
+            return false;
         }
-        
-        return exportToExcel(manufacturers, filePath);
     }
 } 
