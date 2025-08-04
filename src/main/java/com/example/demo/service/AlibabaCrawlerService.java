@@ -241,17 +241,48 @@ public class AlibabaCrawlerService {
         try {
             // 提取商品标题 - 使用您提供的XPath
             WebElement titleElement = item.findElement(By.xpath(".//a[contains(@href, 'dj.1688.com/ci_bb')]"));
-            info.setProductTitle(titleElement.getText().trim());
+            String productTitle = titleElement.getText().trim();
+            if (!productTitle.isEmpty()) {
+                info.setProductTitle(productTitle);
+                System.out.println("📝 提取到商品标题: " + productTitle);
+            } else {
+                info.setProductTitle("未获取到商品标题");
+            }
         } catch (Exception e) {
             info.setProductTitle("未获取到商品标题");
+            System.err.println("❌ 提取商品标题失败: " + e.getMessage());
         }
 
         try {
-            // 提取价格信息
-            WebElement priceElement = item.findElement(By.xpath(".//span[contains(@class, 'price')]"));
-            info.setPrice(priceElement.getText().trim());
+            // 提取价格信息 - 尝试多种选择器
+            WebElement priceElement = null;
+            try {
+                // 首先尝试标准的价格选择器
+                priceElement = item.findElement(By.xpath(".//span[contains(@class, 'price')]"));
+            } catch (Exception e) {
+                try {
+                    // 备用选择器 - 查找包含"￥"的元素
+                    priceElement = item.findElement(By.xpath(".//*[contains(text(), '￥')]"));
+                } catch (Exception e2) {
+                    // 最后尝试查找任何包含数字的元素
+                    priceElement = item.findElement(By.xpath(".//*[contains(@class, 'number')]"));
+                }
+            }
+            
+            if (priceElement != null) {
+                String price = priceElement.getText().trim();
+                if (!price.isEmpty()) {
+                    info.setPrice(price);
+                    System.out.println("💰 提取到价格: " + price);
+                } else {
+                    info.setPrice("未获取到价格信息");
+                }
+            } else {
+                info.setPrice("未获取到价格信息");
+            }
         } catch (Exception e) {
             info.setPrice("未获取到价格信息");
+            System.err.println("❌ 提取价格失败: " + e.getMessage());
         }
 
         // 公司名称将在详情页的联系方式中获取
@@ -263,29 +294,40 @@ public class AlibabaCrawlerService {
     private void extractContactInfo(WebDriver driver, ManufacturerInfo info) {
         try {
             // 根据您提供的HTML结构提取联系方式信息
-            // 公司名称 - 在联系方式弹窗中的第二个div
+            // 公司名称 - 在联系方式弹窗中的第二个div（紧跟在"联系方式"标题后面）
             WebElement companyElement = driver.findElement(By.xpath("//div[contains(text(), '联系方式')]/following-sibling::div[1]"));
             if (companyElement != null) {
                 String companyName = companyElement.getText().trim();
                 if (!companyName.isEmpty() && !companyName.equals("联系方式")) {
                     info.setCompanyName(companyName);
+                    System.out.println("🏢 提取到公司名称: " + companyName);
                 }
             }
         } catch (Exception e) {
-            // 忽略错误，使用基本信息中的公司名称
+            System.err.println("❌ 提取公司名称失败: " + e.getMessage());
         }
 
         try {
             // 联系人姓名 - 根据HTML结构，在底部的联系人信息区域
+            // 查找包含"先生"或"女士"的div，通常在底部区域
             WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 16px') and contains(@style, 'color: rgb(18, 18, 18)')]"));
-            info.setContactPerson(contactNameElement.getText().trim());
+            String contactName = contactNameElement.getText().trim();
+            if (!contactName.isEmpty()) {
+                info.setContactPerson(contactName);
+                System.out.println("👤 提取到联系人: " + contactName);
+            }
         } catch (Exception e) {
             try {
-                // 备用选择器
-                WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 16px')]"));
-                info.setContactPerson(contactNameElement.getText().trim());
+                // 备用选择器 - 查找包含"先生"或"女士"的文本
+                WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(text(), '先生') or contains(text(), '女士')]"));
+                String contactName = contactNameElement.getText().trim();
+                if (!contactName.isEmpty()) {
+                    info.setContactPerson(contactName);
+                    System.out.println("👤 提取到联系人(备用): " + contactName);
+                }
             } catch (Exception e2) {
                 info.setContactPerson("未获取到联系人");
+                System.err.println("❌ 提取联系人失败");
             }
         }
 
@@ -295,9 +337,11 @@ public class AlibabaCrawlerService {
             String phone = phoneElement.getText().trim();
             if (!phone.isEmpty() && !phone.equals("暂无")) {
                 info.setPhoneNumber(phone);
+                System.out.println("📞 提取到电话: " + phone);
             }
         } catch (Exception e) {
             info.setPhoneNumber("未获取到联系电话");
+            System.err.println("❌ 提取电话失败");
         }
 
         try {
@@ -305,10 +349,13 @@ public class AlibabaCrawlerService {
             WebElement mobileElement = driver.findElement(By.xpath("//div[contains(text(), '手机：')]/following-sibling::div[1]"));
             String mobile = mobileElement.getText().trim();
             if (!mobile.isEmpty() && !mobile.equals("暂无")) {
-                info.setPhoneNumber(mobile); // 优先使用手机号
+                // 如果手机号不为空，优先使用手机号
+                info.setPhoneNumber(mobile);
+                System.out.println("📱 提取到手机: " + mobile);
             }
         } catch (Exception e) {
             // 如果手机号获取失败，保持原来的电话
+            System.err.println("❌ 提取手机号失败");
         }
 
         try {
@@ -317,9 +364,11 @@ public class AlibabaCrawlerService {
             String address = addressElement.getText().trim();
             if (!address.isEmpty() && !address.equals("暂无")) {
                 info.setAddress(address);
+                System.out.println("📍 提取到地址: " + address);
             }
         } catch (Exception e) {
             info.setAddress("未获取到地址");
+            System.err.println("❌ 提取地址失败");
         }
 
         try {
@@ -328,11 +377,13 @@ public class AlibabaCrawlerService {
             String fax = faxElement.getText().trim();
             if (!fax.isEmpty() && !fax.equals("暂无")) {
                 info.setBusinessType("传真: " + fax);
+                System.out.println("📠 提取到传真: " + fax);
             } else {
                 info.setBusinessType("未获取到经营模式");
             }
         } catch (Exception e) {
             info.setBusinessType("未获取到经营模式");
+            System.err.println("❌ 提取传真失败");
         }
 
         try {
@@ -369,6 +420,8 @@ public class AlibabaCrawlerService {
         } else {
             info.setContactInfo("未获取到联系方式");
         }
+        
+        System.out.println("📋 综合联系方式: " + info.getContactInfo());
     }
 
     private void scrollPage(WebDriver driver) {
