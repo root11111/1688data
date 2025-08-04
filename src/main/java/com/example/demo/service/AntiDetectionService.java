@@ -306,19 +306,24 @@ public class AntiDetectionService {
             
             js.executeScript(keyboardScript);
             
-            // 模拟触摸事件（移动设备检测）
+            // 模拟触摸事件（移动设备检测）- 使用更安全的方式
             String touchScript = 
-                "var touchEvent = new TouchEvent('touchstart', {\n" +
-                "    touches: [{\n" +
+                "try {\n" +
+                "    var touch = {\n" +
                 "        clientX: 100,\n" +
                 "        clientY: 100,\n" +
                 "        identifier: 0,\n" +
                 "        target: document.body\n" +
-                "    }],\n" +
-                "    bubbles: true,\n" +
-                "    cancelable: true\n" +
-                "});\n" +
-                "document.dispatchEvent(touchEvent);";
+                "    };\n" +
+                "    var touchEvent = new TouchEvent('touchstart', {\n" +
+                "        touches: [touch],\n" +
+                "        bubbles: true,\n" +
+                "        cancelable: true\n" +
+                "    });\n" +
+                "    document.dispatchEvent(touchEvent);\n" +
+                "} catch(e) {\n" +
+                "    console.log('TouchEvent not supported');\n" +
+                "}";
             
             js.executeScript(touchScript);
             

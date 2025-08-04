@@ -78,7 +78,7 @@ public class AlibabaCrawlerService {
                         WebElement item = items.get(i);
                         
                         // 提取商品基本信息
-                        ManufacturerInfo info = extractBasicInfo(item, url);
+                        ManufacturerInfo info = extractBasicInfo(item, url, driver);
                         
                         // 5. 点击列表链接进入详情页
                         String mainWindow = driver.getWindowHandle();
@@ -233,15 +233,24 @@ public class AlibabaCrawlerService {
         }
     }
 
-    private ManufacturerInfo extractBasicInfo(WebElement item, String sourceUrl) {
+    private ManufacturerInfo extractBasicInfo(WebElement item, String sourceUrl, WebDriver driver) {
         ManufacturerInfo info = new ManufacturerInfo();
         info.setCrawlTime(LocalDateTime.now());
         info.setSourceUrl(sourceUrl);
 
         try {
-            // 提取商品标题 - 使用您提供的XPath
-            WebElement titleElement = item.findElement(By.xpath(".//a[contains(@href, 'dj.1688.com/ci_bb')]"));
-            String productTitle = titleElement.getText().trim();
+            // 提取商品标题 - 使用JavaScript避免堆栈溢出
+            WebElement titleElement = item.findElement(By.xpath(".//div[@class='offer-title']/span"));
+            // 直接使用getText()方法，如果失败则使用JavaScript
+            String productTitle;
+            try {
+                productTitle = titleElement.getText().trim();
+            } catch (Exception e) {
+                // 如果getText()失败，使用JavaScript
+                productTitle = (String) ((JavascriptExecutor) driver)
+                        .executeScript("return arguments[0].textContent || arguments[0].innerText;", titleElement);
+                productTitle = productTitle.trim();
+            }
             if (!productTitle.isEmpty()) {
                 info.setProductTitle(productTitle);
                 System.out.println("📝 提取到商品标题: " + productTitle);
@@ -254,29 +263,21 @@ public class AlibabaCrawlerService {
         }
 
         try {
-            // 提取价格信息 - 尝试多种选择器
-            WebElement priceElement = null;
+            // 提取价格信息 - 使用JavaScript避免堆栈溢出
+            WebElement priceElement = item.findElement(By.xpath(".//div[@class='offer-price']/span[@class='price']"));
+            // 直接使用getText()方法，如果失败则使用JavaScript
+            String price;
             try {
-                // 首先尝试标准的价格选择器
-                priceElement = item.findElement(By.xpath(".//span[contains(@class, 'price')]"));
+                price = priceElement.getText().trim();
             } catch (Exception e) {
-                try {
-                    // 备用选择器 - 查找包含"￥"的元素
-                    priceElement = item.findElement(By.xpath(".//*[contains(text(), '￥')]"));
-                } catch (Exception e2) {
-                    // 最后尝试查找任何包含数字的元素
-                    priceElement = item.findElement(By.xpath(".//*[contains(@class, 'number')]"));
-                }
+                // 如果getText()失败，使用JavaScript
+                price = (String) ((JavascriptExecutor) driver)
+                        .executeScript("return arguments[0].textContent || arguments[0].innerText;", priceElement);
+                price = price.trim();
             }
-            
-            if (priceElement != null) {
-                String price = priceElement.getText().trim();
-                if (!price.isEmpty()) {
-                    info.setPrice(price);
-                    System.out.println("💰 提取到价格: " + price);
-                } else {
-                    info.setPrice("未获取到价格信息");
-                }
+            if (!price.isEmpty()) {
+                info.setPrice(price);
+                System.out.println("💰 提取到价格: " + price);
             } else {
                 info.setPrice("未获取到价格信息");
             }
@@ -295,9 +296,12 @@ public class AlibabaCrawlerService {
         try {
             // 根据您提供的HTML结构提取联系方式信息
             // 公司名称 - 在联系方式弹窗中的第二个div（紧跟在"联系方式"标题后面）
-            WebElement companyElement = driver.findElement(By.xpath("//div[contains(text(), '联系方式')]/following-sibling::div[1]"));
+            // 根据HTML结构：<div style="height: 20px; width: calc(100% - 20px); padding-left: 20px; font-family: PingFangSC; font-size: 20px; color: rgb(51, 51, 51); letter-spacing: 0px; line-height: 20px; margin-top: 24px; position: relative;">东莞市虹达电子科技有限公司</div>
+            WebElement companyElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 20px') and contains(@style, 'color: rgb(51, 51, 51)') and contains(@style, 'margin-top: 24px')]"));
             if (companyElement != null) {
-                String companyName = companyElement.getText().trim();
+                String companyName = (String) ((JavascriptExecutor) driver)
+                        .executeScript("return arguments[0].textContent || arguments[0].innerText;", companyElement);
+                companyName = companyName.trim();
                 if (!companyName.isEmpty() && !companyName.equals("联系方式")) {
                     info.setCompanyName(companyName);
                     System.out.println("🏢 提取到公司名称: " + companyName);
@@ -309,9 +313,11 @@ public class AlibabaCrawlerService {
 
         try {
             // 联系人姓名 - 根据HTML结构，在底部的联系人信息区域
-            // 查找包含"先生"或"女士"的div，通常在底部区域
-            WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 16px') and contains(@style, 'color: rgb(18, 18, 18)')]"));
-            String contactName = contactNameElement.getText().trim();
+            // 根据HTML结构：<div style="height: 16px; font-family: PingFangSC; font-size: 16px; color: rgb(18, 18, 18); text-align: left; line-height: 16px; margin-top: 42px; margin-left: 112px;">邹兴爱女士</div>
+            WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 16px') and contains(@style, 'color: rgb(18, 18, 18)') and contains(@style, 'margin-top: 42px')]"));
+            String contactName = (String) ((JavascriptExecutor) driver)
+                    .executeScript("return arguments[0].textContent || arguments[0].innerText;", contactNameElement);
+            contactName = contactName.trim();
             if (!contactName.isEmpty()) {
                 info.setContactPerson(contactName);
                 System.out.println("👤 提取到联系人: " + contactName);
@@ -320,7 +326,9 @@ public class AlibabaCrawlerService {
             try {
                 // 备用选择器 - 查找包含"先生"或"女士"的文本
                 WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(text(), '先生') or contains(text(), '女士')]"));
-                String contactName = contactNameElement.getText().trim();
+                String contactName = (String) ((JavascriptExecutor) driver)
+                        .executeScript("return arguments[0].textContent || arguments[0].innerText;", contactNameElement);
+                contactName = contactName.trim();
                 if (!contactName.isEmpty()) {
                     info.setContactPerson(contactName);
                     System.out.println("👤 提取到联系人(备用): " + contactName);
@@ -333,8 +341,11 @@ public class AlibabaCrawlerService {
 
         try {
             // 电话 - 根据HTML结构，查找包含"电话："的div后面的div
+            // 根据HTML结构：<div style="height: 14px; width: 500px; font-family: PingFangSC-Regular; font-size: 14px; color: rgb(51, 51, 51); letter-spacing: 0px; text-align: justify; line-height: 14px; display: inline-block; vertical-align: top; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; word-break: break-all;">86 0769 18820741593</div>
             WebElement phoneElement = driver.findElement(By.xpath("//div[contains(text(), '电话：')]/following-sibling::div[1]"));
-            String phone = phoneElement.getText().trim();
+            String phone = (String) ((JavascriptExecutor) driver)
+                    .executeScript("return arguments[0].textContent || arguments[0].innerText;", phoneElement);
+            phone = phone.trim();
             if (!phone.isEmpty() && !phone.equals("暂无")) {
                 info.setPhoneNumber(phone);
                 System.out.println("📞 提取到电话: " + phone);
@@ -346,8 +357,11 @@ public class AlibabaCrawlerService {
 
         try {
             // 手机 - 根据HTML结构，查找包含"手机："的div后面的div
+            // 根据HTML结构：<div style="height: 14px; width: 500px; font-family: PingFangSC-Regular; font-size: 14px; color: rgb(51, 51, 51); letter-spacing: 0px; text-align: justify; line-height: 14px; display: inline-block; vertical-align: top; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; word-break: break-all;">18820741593</div>
             WebElement mobileElement = driver.findElement(By.xpath("//div[contains(text(), '手机：')]/following-sibling::div[1]"));
-            String mobile = mobileElement.getText().trim();
+            String mobile = (String) ((JavascriptExecutor) driver)
+                    .executeScript("return arguments[0].textContent || arguments[0].innerText;", mobileElement);
+            mobile = mobile.trim();
             if (!mobile.isEmpty() && !mobile.equals("暂无")) {
                 // 如果手机号不为空，优先使用手机号
                 info.setPhoneNumber(mobile);
@@ -360,8 +374,11 @@ public class AlibabaCrawlerService {
 
         try {
             // 地址 - 根据HTML结构，查找包含"地址："的div后面的div
+            // 根据HTML结构：<div style="height: 14px; width: 500px; font-family: PingFangSC-Regular; font-size: 14px; color: rgb(51, 51, 51); letter-spacing: 0px; text-align: justify; line-height: 14px; display: inline-block; vertical-align: top; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; word-break: break-all;" title="广东省东莞市浮岗村香芒西路南六街5号中达电子3楼">广东省东莞市浮岗村香芒西路南六街5号中达电子3楼</div>
             WebElement addressElement = driver.findElement(By.xpath("//div[contains(text(), '地址：')]/following-sibling::div[1]"));
-            String address = addressElement.getText().trim();
+            String address = (String) ((JavascriptExecutor) driver)
+                    .executeScript("return arguments[0].textContent || arguments[0].innerText;", addressElement);
+            address = address.trim();
             if (!address.isEmpty() && !address.equals("暂无")) {
                 info.setAddress(address);
                 System.out.println("📍 提取到地址: " + address);
@@ -373,8 +390,11 @@ public class AlibabaCrawlerService {
 
         try {
             // 传真 - 根据HTML结构，查找包含"传真："的div后面的div
+            // 根据HTML结构：<div style="height: 14px; width: 500px; font-family: PingFangSC-Regular; font-size: 14px; color: rgb(51, 51, 51); letter-spacing: 0px; text-align: justify; line-height: 14px; display: inline-block; vertical-align: top; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; word-break: break-all;">暂无</div>
             WebElement faxElement = driver.findElement(By.xpath("//div[contains(text(), '传真：')]/following-sibling::div[1]"));
-            String fax = faxElement.getText().trim();
+            String fax = (String) ((JavascriptExecutor) driver)
+                    .executeScript("return arguments[0].textContent || arguments[0].innerText;", faxElement);
+            fax = fax.trim();
             if (!fax.isEmpty() && !fax.equals("暂无")) {
                 info.setBusinessType("传真: " + fax);
                 System.out.println("📠 提取到传真: " + fax);
