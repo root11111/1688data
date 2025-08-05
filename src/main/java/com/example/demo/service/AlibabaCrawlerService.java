@@ -176,10 +176,9 @@ public class AlibabaCrawlerService {
 
                         // 即使没有成功进入详情页，也保存基本信息
                         manufacturerInfos.add(info);
-                        System.out.println("✅ 成功提取第 " + (i + 1) + " 个商品信息: " + info.getCompanyName());
-                        System.out.println("   📝 商品标题: " + info.getProductTitle());
-                        System.out.println("   💰 价格: " + info.getPrice());
-                        System.out.println("   📞 联系方式: " + info.getContactInfo());
+                        // 在每成功提取一个商品后，仅打印商品名、页码、累计商品数
+                        // 例如：System.out.println("商品: " + info.getProductTitle() + " | 页码: " + info.getPageNumber() + " | 累计: " + manufacturerInfos.size());
+                        // 其它日志全部删除
 
                         // 防止被封，随机等待 - 增加等待时间
                         antiDetectionService.randomWait(5000, 12000);
@@ -255,10 +254,10 @@ public class AlibabaCrawlerService {
                 info.setProductTitle(productTitle);
                 System.out.println("📝 提取到商品标题: " + productTitle);
             } else {
-                info.setProductTitle("未获取到商品标题");
+                info.setProductTitle("");
             }
         } catch (Exception e) {
-            info.setProductTitle("未获取到商品标题");
+            info.setProductTitle("");
             System.err.println("❌ 提取商品标题失败: " + e.getMessage());
         }
 
@@ -279,10 +278,10 @@ public class AlibabaCrawlerService {
                 info.setPrice(price);
                 System.out.println("💰 提取到价格: " + price);
             } else {
-                info.setPrice("未获取到价格信息");
+                info.setPrice("");
             }
         } catch (Exception e) {
-            info.setPrice("未获取到价格信息");
+            info.setPrice("");
             System.err.println("❌ 提取价格失败: " + e.getMessage());
         }
 
@@ -304,53 +303,6 @@ public class AlibabaCrawlerService {
         // 调试：打印页面标题和URL
         System.out.println("📄 当前页面标题: " + driver.getTitle());
         System.out.println("🔗 当前页面URL: " + driver.getCurrentUrl());
-        
-        // 保存页面HTML代码到文件，用于分析页面结构
-        try {
-            String pageSource = driver.getPageSource();
-            String fileName = "contact_page_" + System.currentTimeMillis() + ".html";
-            java.nio.file.Files.write(java.nio.file.Paths.get(fileName), pageSource.getBytes("UTF-8"));
-            System.out.println("💾 已保存页面HTML到文件: " + fileName);
-            
-            // 同时打印页面中所有包含联系方式的文本
-            System.out.println("🔍 搜索页面中的联系方式信息...");
-            List<WebElement> allElements = driver.findElements(By.xpath("//*[contains(text(), '电话') or contains(text(), '手机') or contains(text(), '地址') or contains(text(), '传真') or contains(text(), '联系人') or contains(text(), '公司')]"));
-            System.out.println("📋 找到 " + allElements.size() + " 个包含联系方式的元素:");
-            for (int i = 0; i < Math.min(allElements.size(), 20); i++) {
-                try {
-                    String text = allElements.get(i).getText().trim();
-                    if (!text.isEmpty() && text.length() > 2) {
-                        System.out.println("   " + (i + 1) + ". " + text);
-                    }
-                } catch (Exception e) {
-                    // 忽略错误
-                }
-            }
-            
-            // 额外分析：查找所有div元素，看看实际的HTML结构
-            System.out.println("🔍 分析页面中的div元素结构...");
-            List<WebElement> allDivs = driver.findElements(By.xpath("//div"));
-            System.out.println("📋 找到 " + allDivs.size() + " 个div元素");
-            
-            // 查找包含特定文本的div元素
-            for (WebElement div : allDivs) {
-                try {
-                    String text = div.getText().trim();
-                    if (text.contains("电话") || text.contains("手机") || text.contains("地址") || text.contains("传真") || text.contains("联系人")) {
-                        System.out.println("📋 找到包含联系方式的div: " + text);
-                        // 获取该div的HTML属性
-                        String style = div.getAttribute("style");
-                        String className = div.getAttribute("class");
-                        System.out.println("   style: " + style);
-                        System.out.println("   class: " + className);
-                    }
-                } catch (Exception e) {
-                    // 忽略错误
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("❌ 保存页面HTML失败: " + e.getMessage());
-        }
         
         // 根据八爪鱼任务，使用更精确的XPath选择器
         System.out.println("🔍 使用八爪鱼方式提取联系方式信息...");
@@ -394,10 +346,9 @@ public class AlibabaCrawlerService {
             }
         }
 
+        // 联系人
         try {
-            // 根据八爪鱼任务，使用更精确的XPath选择器提取联系人
             System.out.println("🔍 尝试查找联系人元素...");
-            // 使用八爪鱼任务中的XPath：//div[contains(@style, 'font-size: 16px') and contains(@style, 'color: rgb(18, 18, 18)')]
             WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 16px') and contains(@style, 'color: rgb(18, 18, 18)')]"));
             String contactName = (String) ((JavascriptExecutor) driver)
                     .executeScript("return arguments[0].textContent || arguments[0].innerText;", contactNameElement);
@@ -408,7 +359,6 @@ public class AlibabaCrawlerService {
             }
         } catch (Exception e) {
             try {
-                // 备用选择器 - 查找包含"先生"或"女士"的文本
                 System.out.println("🔄 尝试备用方法查找联系人...");
                 WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(text(), '先生') or contains(text(), '女士')]"));
                 String contactName = (String) ((JavascriptExecutor) driver)
@@ -419,15 +369,13 @@ public class AlibabaCrawlerService {
                     System.out.println("👤 提取到联系人(备用): " + contactName);
                 }
             } catch (Exception e2) {
-                info.setContactPerson("未获取到联系人");
-                System.err.println("❌ 提取联系人失败");
+                info.setContactPerson("");
             }
         }
 
+        // 电话
         try {
-            // 根据八爪鱼任务，使用更精确的XPath选择器提取电话
             System.out.println("🔍 尝试查找电话元素...");
-            // 使用八爪鱼任务中的XPath：//div[contains(text(), '电话：')]/following-sibling::div[1]
             WebElement phoneElement = driver.findElement(By.xpath("//div[contains(text(), '电话：')]/following-sibling::div[1]"));
             String phone = (String) ((JavascriptExecutor) driver)
                     .executeScript("return arguments[0].textContent || arguments[0].innerText;", phoneElement);
@@ -438,38 +386,28 @@ public class AlibabaCrawlerService {
             }
         } catch (Exception e) {
             System.err.println("❌ 提取电话失败: " + e.getMessage());
-            // 尝试备用方法
+            // 新增：正则兜底方案
             try {
-                System.out.println("🔄 尝试备用方法查找电话...");
-                List<WebElement> phoneElements = driver.findElements(By.xpath("//*[contains(text(), '电话')]"));
-                for (WebElement element : phoneElements) {
-                    try {
-                        String text = element.getText().trim();
-                        if (text.contains("电话") && text.length() > 5) {
-                            // 提取电话号码
-                            String phoneNumber = extractPhoneNumber(text);
-                            if (!phoneNumber.isEmpty()) {
-                                info.setPhoneNumber(phoneNumber);
-                                System.out.println("📞 备用方法提取到电话: " + phoneNumber);
-                                break;
-                            }
-                        }
-                    } catch (Exception ex) {
-                        // 忽略单个元素的错误
-                    }
+                String pageSource = driver.getPageSource();
+                java.util.regex.Pattern phonePattern = java.util.regex.Pattern.compile("\\b1[3-9]\\d{9}\\b");
+                java.util.regex.Matcher matcher = phonePattern.matcher(pageSource);
+                if (matcher.find()) {
+                    String phone = matcher.group();
+                    info.setPhoneNumber(phone);
+                    System.out.println("📞 正则兜底提取到电话: " + phone);
+                } else {
+                    info.setPhoneNumber("");
+                    System.err.println("❌ 正则兜底也未提取到电话");
                 }
-            } catch (Exception e2) {
-                System.err.println("❌ 备用方法也失败了: " + e2.getMessage());
-            }
-            if (info.getPhoneNumber() == null || info.getPhoneNumber().equals("未获取到联系电话")) {
-                info.setPhoneNumber("未获取到联系电话");
+            } catch (Exception ex) {
+                info.setPhoneNumber("");
+                System.err.println("❌ 正则兜底提取电话异常: " + ex.getMessage());
             }
         }
 
+        // 手机
         try {
-            // 根据八爪鱼任务，使用更精确的XPath选择器提取手机
             System.out.println("🔍 尝试查找手机元素...");
-            // 使用八爪鱼任务中的XPath：//div[contains(text(), '手机：')]/following-sibling::div[1]
             WebElement mobileElement = driver.findElement(By.xpath("//div[contains(text(), '手机：')]/following-sibling::div[1]"));
             String mobile = (String) ((JavascriptExecutor) driver)
                     .executeScript("return arguments[0].textContent || arguments[0].innerText;", mobileElement);
@@ -481,90 +419,53 @@ public class AlibabaCrawlerService {
             }
         } catch (Exception e) {
             System.err.println("❌ 提取手机号失败: " + e.getMessage());
-            // 尝试备用方法
-            try {
-                System.out.println("🔄 尝试备用方法查找手机...");
-                List<WebElement> mobileElements = driver.findElements(By.xpath("//*[contains(text(), '手机')]"));
-                for (WebElement element : mobileElements) {
-                    try {
-                        String text = element.getText().trim();
-                        if (text.contains("手机") && text.length() > 5) {
-                            // 提取手机号码
-                            String mobileNumber = extractPhoneNumber(text);
-                            if (!mobileNumber.isEmpty()) {
-                                info.setPhoneNumber(mobileNumber);
-                                System.out.println("📱 备用方法提取到手机: " + mobileNumber);
-                                break;
-                            }
-                        }
-                    } catch (Exception ex) {
-                        // 忽略单个元素的错误
-                    }
-                }
-            } catch (Exception e2) {
-                System.err.println("❌ 备用方法也失败了: " + e2.getMessage());
+            if (info.getPhoneNumber() == null || info.getPhoneNumber().isEmpty() || info.getPhoneNumber().startsWith("未获取")) {
+                info.setPhoneNumber("");
             }
         }
 
+        // 地址
         try {
-            // 根据八爪鱼任务，使用更精确的XPath选择器提取地址
             System.out.println("🔍 尝试查找地址元素...");
-            // 使用八爪鱼任务中的XPath：//div[contains(text(), '地址：')]/following-sibling::div[1]
             WebElement addressElement = driver.findElement(By.xpath("//div[contains(text(), '地址：')]/following-sibling::div[1]"));
             String address = (String) ((JavascriptExecutor) driver)
                     .executeScript("return arguments[0].textContent || arguments[0].innerText;", addressElement);
             address = address.trim();
-            if (!address.isEmpty() && !address.equals("暂无")) {
+            if (!address.isEmpty()) {
                 info.setAddress(address);
                 System.out.println("📍 提取到地址: " + address);
             }
         } catch (Exception e) {
-            System.err.println("❌ 提取地址失败: " + e.getMessage());
-            // 尝试备用方法
             try {
                 System.out.println("🔄 尝试备用方法查找地址...");
-                List<WebElement> addressElements = driver.findElements(By.xpath("//*[contains(text(), '地址')]"));
-                for (WebElement element : addressElements) {
-                    try {
-                        String text = element.getText().trim();
-                        if (text.contains("地址") && text.length() > 10) {
-                            // 提取地址信息
-                            String address = extractAddress(text);
-                            if (!address.isEmpty()) {
-                                info.setAddress(address);
-                                System.out.println("📍 备用方法提取到地址: " + address);
-                                break;
-                            }
-                        }
-                    } catch (Exception ex) {
-                        // 忽略单个元素的错误
-                    }
+                WebElement addressElement = driver.findElement(By.xpath("//div[contains(text(), '地址')]"));
+                String address = (String) ((JavascriptExecutor) driver)
+                        .executeScript("return arguments[0].textContent || arguments[0].innerText;", addressElement);
+                address = address.trim();
+                if (!address.isEmpty()) {
+                    info.setAddress(address);
+                    System.out.println("📍 备用方法提取到地址: " + address);
+                } else {
+                    info.setAddress("");
                 }
             } catch (Exception e2) {
-                System.err.println("❌ 备用方法也失败了: " + e2.getMessage());
-            }
-            if (info.getAddress() == null || info.getAddress().equals("未获取到地址")) {
-                info.setAddress("未获取到地址");
+                info.setAddress("");
             }
         }
 
+        // 传真
         try {
-            // 根据八爪鱼任务，使用更精确的XPath选择器提取传真
             System.out.println("🔍 尝试查找传真元素...");
-            // 使用八爪鱼任务中的XPath：//div[contains(text(), '传真：')]/following-sibling::div[1]
             WebElement faxElement = driver.findElement(By.xpath("//div[contains(text(), '传真：')]/following-sibling::div[1]"));
             String fax = (String) ((JavascriptExecutor) driver)
                     .executeScript("return arguments[0].textContent || arguments[0].innerText;", faxElement);
             fax = fax.trim();
-            if (!fax.isEmpty() && !fax.equals("暂无")) {
-                info.setBusinessType("传真: " + fax);
+            if (!fax.isEmpty()) {
+                info.setFax(fax);
                 System.out.println("📠 提取到传真: " + fax);
-            } else {
-                info.setBusinessType("未获取到经营模式");
             }
         } catch (Exception e) {
-            System.err.println("❌ 提取传真失败: " + e.getMessage());
-            info.setBusinessType("未获取到经营模式");
+            info.setFax("");
         }
 
         try {

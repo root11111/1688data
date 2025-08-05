@@ -25,6 +25,14 @@ public class ManufacturerInfo {
     private String exportMarket;    // 出口市场
     private String certification;   // 认证信息
     private String contactInfo;     // 联系方式信息（综合）
+    private String fax; // 传真
     private LocalDateTime crawlTime; // 爬取时间
     private String sourceUrl;       // 来源URL
+    private Integer pageNumber;
+    public Integer getPageNumber() {
+        return pageNumber;
+    }
+    public void setPageNumber(Integer pageNumber) {
+        this.pageNumber = pageNumber;
+    }
 }

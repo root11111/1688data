@@ -33,7 +33,8 @@ public class ExcelExportService {
                 "公司名称", "联系人", "联系电话", "地址", "主营产品", 
                 "经营模式", "产品标题", "价格", "最小起订量", "供应能力",
                 "公司等级", "注册资本", "成立年份", "员工人数", "年营业额",
-                "出口市场", "认证信息", "公司链接", "爬取时间", "来源URL"
+                "出口市场", "认证信息", "公司链接", "爬取时间", "来源URL",
+                "页码"
             };
             
             for (int i = 0; i < headers.length; i++) {
@@ -68,6 +69,7 @@ public class ExcelExportService {
                 dataRow.createCell(18).setCellValue(info.getCrawlTime() != null ? 
                     info.getCrawlTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
                 dataRow.createCell(19).setCellValue(info.getSourceUrl() != null ? info.getSourceUrl() : "");
+                dataRow.createCell(20).setCellValue(info.getPageNumber() != null ? info.getPageNumber() : -1);
             }
             
             // 自动调整列宽
@@ -78,12 +80,10 @@ public class ExcelExportService {
             // 保存文件
             try (FileOutputStream fileOut = new FileOutputStream(filePath)) {
                 workbook.write(fileOut);
-                System.out.println("Excel文件已保存到: " + filePath);
                 return true;
             }
             
         } catch (IOException e) {
-            System.err.println("导出Excel文件失败: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -137,28 +137,18 @@ public class ExcelExportService {
             String fileName = generateDefaultFileName();
             String filePath = "exports/" + fileName;
             
-            System.out.println("📁 准备导出Excel文件...");
-            System.out.println("📄 文件名: " + fileName);
-            System.out.println("📂 文件路径: " + filePath);
-            
             // 确保导出目录存在
             java.io.File exportDir = new java.io.File("exports");
             if (!exportDir.exists()) {
                 boolean created = exportDir.mkdirs();
-                System.out.println("📁 创建导出目录: " + (created ? "成功" : "失败"));
-            } else {
-                System.out.println("📁 导出目录已存在");
             }
             
             boolean result = exportToExcel(manufacturers, filePath);
             if (result) {
                 java.io.File file = new java.io.File(filePath);
-                System.out.println("📊 文件大小: " + file.length() + " 字节");
-                System.out.println("📊 数据条数: " + manufacturers.size());
             }
             return result;
         } catch (Exception e) {
-            System.err.println("❌ 导出到默认路径失败: " + e.getMessage());
             e.printStackTrace();
             return false;
         }

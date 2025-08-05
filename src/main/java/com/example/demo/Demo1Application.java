@@ -63,7 +63,6 @@ public class Demo1Application {
             }
             
         } catch (Exception e) {
-            System.err.println("错误: " + e.getMessage());
             e.printStackTrace();
         } finally {
             context.close();
