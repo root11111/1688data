@@ -26,6 +26,9 @@ public class AlibabaCrawlerService {
     @Autowired
     private AntiDetectionService antiDetectionService;
 
+    @Autowired
+    private ExcelExportService excelExportService;
+
     public List<ManufacturerInfo> crawlManufacturerInfo(String url, int maxPages) {
         // 设置WebDriver
         WebDriverManager.chromedriver().setup();
@@ -171,9 +174,29 @@ public class AlibabaCrawlerService {
                             System.err.println("提取详细信息失败: " + e.getMessage());
                         }
 
-                        // 关闭当前标签页，切换回主窗口
-                        driver.close();
+                        // 关闭所有新打开的标签页，切换回主窗口
+                        System.out.println("🔄 关闭所有新打开的标签页...");
+                        
+                        // 获取当前所有窗口句柄
+                        java.util.Set<String> allWindowHandles = driver.getWindowHandles();
+                        System.out.println("📊 当前窗口数量: " + allWindowHandles.size());
+                        
+                        // 关闭除了主窗口之外的所有标签页
+                        for (String windowHandle : allWindowHandles) {
+                            if (!windowHandle.equals(mainWindow)) {
+                                try {
+                                    driver.switchTo().window(windowHandle);
+                                    System.out.println("🔄 关闭标签页: " + driver.getTitle());
+                                    driver.close();
+                                } catch (Exception e) {
+                                    System.err.println("❌ 关闭标签页失败: " + e.getMessage());
+                                }
+                            }
+                        }
+                        
+                        // 切换回主窗口
                         driver.switchTo().window(mainWindow);
+                        System.out.println("✅ 已切换回主窗口: " + driver.getTitle());
 
                         // 即使没有成功进入详情页，也保存基本信息
                         manufacturerInfos.add(info);
@@ -183,6 +206,16 @@ public class AlibabaCrawlerService {
 
                         // 防止被封，随机等待 - 增加等待时间
                         antiDetectionService.randomWait(5000, 12000);
+
+                        // 每爬取完一个商品后，立即写入Excel并打印日志
+                        boolean exportSuccess = excelExportService.appendToDefaultPath(info);
+                        if (exportSuccess) {
+                            System.out.println("✅ 已成功导出商品信息到Excel");
+                            System.out.println("📄 文件名: " + excelExportService.getCurrentFileName());
+                            System.out.println("📁 文件目录: " + excelExportService.getExportDirectory());
+                        } else {
+                            System.err.println("❌ 导出Excel失败");
+                        }
 
                     } catch (Exception e) {
                         System.err.println("处理第 " + i + " 个商品时出错: " + e.getMessage());
@@ -304,6 +337,10 @@ public class AlibabaCrawlerService {
         // 调试：打印页面标题和URL
         System.out.println("📄 当前页面标题: " + driver.getTitle());
         System.out.println("🔗 当前页面URL: " + driver.getCurrentUrl());
+        
+        // 更新来源URL为联系方式页面的URL
+        info.setSourceUrl(driver.getCurrentUrl());
+        System.out.println("📝 已更新来源URL为联系方式页面: " + driver.getCurrentUrl());
         
         // 根据八爪鱼任务，使用更精确的XPath选择器
         System.out.println("🔍 使用八爪鱼方式提取联系方式信息...");

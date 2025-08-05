@@ -14,6 +14,31 @@ import java.util.List;
 @Service
 public class ExcelExportService {
 
+    private String currentFileName;
+    private String exportDirectory;
+
+    /**
+     * 获取当前文件名
+     * @return 当前文件名
+     */
+    public String getCurrentFileName() {
+        if (currentFileName == null) {
+            currentFileName = generateDefaultFileName();
+        }
+        return currentFileName;
+    }
+
+    /**
+     * 获取导出目录
+     * @return 导出目录
+     */
+    public String getExportDirectory() {
+        if (exportDirectory == null) {
+            exportDirectory = new java.io.File("exports").getAbsolutePath();
+        }
+        return exportDirectory;
+    }
+
     /**
      * 将供应商信息导出到Excel文件
      * @param manufacturers 供应商信息列表
@@ -31,10 +56,7 @@ public class ExcelExportService {
             Row headerRow = sheet.createRow(0);
             String[] headers = {
                 "公司名称", "联系人", "联系电话", "地址", "主营产品", 
-                "经营模式", "产品标题", "价格", "最小起订量", "供应能力",
-                "公司等级", "注册资本", "成立年份", "员工人数", "年营业额",
-                "出口市场", "认证信息", "公司链接", "爬取时间", "来源URL",
-                "页码"
+                "产品标题", "价格", "爬取时间", "来源URL", "页码"
             };
             
             for (int i = 0; i < headers.length; i++) {
@@ -53,23 +75,12 @@ public class ExcelExportService {
                 dataRow.createCell(2).setCellValue(info.getPhoneNumber() != null ? info.getPhoneNumber() : "");
                 dataRow.createCell(3).setCellValue(info.getAddress() != null ? info.getAddress() : "");
                 dataRow.createCell(4).setCellValue(info.getMainProducts() != null ? info.getMainProducts() : "");
-                dataRow.createCell(5).setCellValue(info.getBusinessType() != null ? info.getBusinessType() : "");
-                dataRow.createCell(6).setCellValue(info.getProductTitle() != null ? info.getProductTitle() : "");
-                dataRow.createCell(7).setCellValue(info.getPrice() != null ? info.getPrice() : "");
-                dataRow.createCell(8).setCellValue(info.getMinOrder() != null ? info.getMinOrder() : "");
-                dataRow.createCell(9).setCellValue(info.getSupplyAbility() != null ? info.getSupplyAbility() : "");
-                dataRow.createCell(10).setCellValue(info.getCompanyLevel() != null ? info.getCompanyLevel() : "");
-                dataRow.createCell(11).setCellValue(info.getRegisteredCapital() != null ? info.getRegisteredCapital() : "");
-                dataRow.createCell(12).setCellValue(info.getEstablishmentYear() != null ? info.getEstablishmentYear() : "");
-                dataRow.createCell(13).setCellValue(info.getEmployeeCount() != null ? info.getEmployeeCount() : "");
-                dataRow.createCell(14).setCellValue(info.getAnnualRevenue() != null ? info.getAnnualRevenue() : "");
-                dataRow.createCell(15).setCellValue(info.getExportMarket() != null ? info.getExportMarket() : "");
-                dataRow.createCell(16).setCellValue(info.getCertification() != null ? info.getCertification() : "");
-                dataRow.createCell(17).setCellValue(info.getCompanyUrl() != null ? info.getCompanyUrl() : "");
-                dataRow.createCell(18).setCellValue(info.getCrawlTime() != null ? 
+                dataRow.createCell(5).setCellValue(info.getProductTitle() != null ? info.getProductTitle() : "");
+                dataRow.createCell(6).setCellValue(info.getPrice() != null ? info.getPrice() : "");
+                dataRow.createCell(7).setCellValue(info.getCrawlTime() != null ? 
                     info.getCrawlTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
-                dataRow.createCell(19).setCellValue(info.getSourceUrl() != null ? info.getSourceUrl() : "");
-                dataRow.createCell(20).setCellValue(info.getPageNumber() != null ? info.getPageNumber() : -1);
+                dataRow.createCell(8).setCellValue(info.getSourceUrl() != null ? info.getSourceUrl() : "");
+                dataRow.createCell(9).setCellValue(info.getPageNumber() != null ? info.getPageNumber() : -1);
             }
             
             // 自动调整列宽
@@ -134,21 +145,149 @@ public class ExcelExportService {
      */
     public boolean exportToDefaultPath(List<ManufacturerInfo> manufacturers) {
         try {
+            System.out.println("📊 Excel导出服务开始...");
+            System.out.println("📊 数据条数: " + (manufacturers != null ? manufacturers.size() : "null"));
+            
             String fileName = generateDefaultFileName();
+            String filePath = "exports/" + fileName;
+            
+            System.out.println("📊 文件名: " + fileName);
+            System.out.println("📊 文件路径: " + filePath);
+            
+            // 确保导出目录存在
+            java.io.File exportDir = new java.io.File("exports");
+            System.out.println("📊 检查导出目录: " + exportDir.getAbsolutePath());
+            System.out.println("📊 目录是否存在: " + exportDir.exists());
+            
+            if (!exportDir.exists()) {
+                System.out.println("📊 创建导出目录...");
+                boolean created = exportDir.mkdirs();
+                System.out.println("📊 目录创建结果: " + created);
+                if (!created) {
+                    System.err.println("❌ 无法创建导出目录");
+                    return false;
+                }
+            }
+            
+            System.out.println("📊 调用exportToExcel方法...");
+            boolean result = exportToExcel(manufacturers, filePath);
+            System.out.println("📊 exportToExcel返回结果: " + result);
+            
+            if (result) {
+                java.io.File file = new java.io.File(filePath);
+                System.out.println("📊 检查生成的文件: " + file.getAbsolutePath());
+                System.out.println("📊 文件是否存在: " + file.exists());
+                if (file.exists()) {
+                    System.out.println("📊 文件大小: " + file.length() + " 字节");
+                }
+            }
+            
+            return result;
+        } catch (Exception e) {
+            System.err.println("❌ Excel导出服务异常: " + e.getMessage());
+            System.err.println("🔍 Excel导出异常详情:");
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 追加数据到Excel文件（如果文件不存在则创建）
+     * @param manufacturer 单个供应商信息
+     * @param filePath 文件路径
+     * @return 是否成功
+     */
+    public boolean appendToExcel(ManufacturerInfo manufacturer, String filePath) {
+        try {
+            java.io.File file = new java.io.File(filePath);
+            Workbook workbook;
+            Sheet sheet;
+            
+            if (file.exists()) {
+                // 文件存在，读取现有文件
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
+                    workbook = new XSSFWorkbook(fis);
+                    sheet = workbook.getSheetAt(0);
+                }
+            } else {
+                // 文件不存在，创建新文件
+                workbook = new XSSFWorkbook();
+                sheet = workbook.createSheet("1688供应商信息");
+                
+                // 创建标题行
+                CellStyle headerStyle = createHeaderStyle(workbook);
+                Row headerRow = sheet.createRow(0);
+                String[] headers = {
+                    "公司名称", "联系人", "联系电话", "地址", "主营产品", 
+                    "产品标题", "价格", "爬取时间", "来源URL", "页码"
+                };
+                
+                for (int i = 0; i < headers.length; i++) {
+                    Cell cell = headerRow.createCell(i);
+                    cell.setCellValue(headers[i]);
+                    cell.setCellStyle(headerStyle);
+                }
+            }
+            
+            // 添加新数据行
+            int lastRowNum = sheet.getLastRowNum();
+            Row dataRow = sheet.createRow(lastRowNum + 1);
+            
+            dataRow.createCell(0).setCellValue(manufacturer.getCompanyName() != null ? manufacturer.getCompanyName() : "");
+            dataRow.createCell(1).setCellValue(manufacturer.getContactPerson() != null ? manufacturer.getContactPerson() : "");
+            dataRow.createCell(2).setCellValue(manufacturer.getPhoneNumber() != null ? manufacturer.getPhoneNumber() : "");
+            dataRow.createCell(3).setCellValue(manufacturer.getAddress() != null ? manufacturer.getAddress() : "");
+            dataRow.createCell(4).setCellValue(manufacturer.getMainProducts() != null ? manufacturer.getMainProducts() : "");
+            dataRow.createCell(5).setCellValue(manufacturer.getProductTitle() != null ? manufacturer.getProductTitle() : "");
+            dataRow.createCell(6).setCellValue(manufacturer.getPrice() != null ? manufacturer.getPrice() : "");
+            dataRow.createCell(7).setCellValue(manufacturer.getCrawlTime() != null ? 
+                manufacturer.getCrawlTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
+            dataRow.createCell(8).setCellValue(manufacturer.getSourceUrl() != null ? manufacturer.getSourceUrl() : "");
+            dataRow.createCell(9).setCellValue(manufacturer.getPageNumber() != null ? manufacturer.getPageNumber() : -1);
+            
+            // 保存文件
+            try (FileOutputStream fileOut = new FileOutputStream(filePath)) {
+                workbook.write(fileOut);
+                return true;
+            } finally {
+                workbook.close();
+            }
+            
+        } catch (IOException e) {
+            System.err.println("❌ 追加Excel数据失败: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    /**
+     * 追加数据到默认路径的Excel文件
+     * @param manufacturer 单个供应商信息
+     * @return 是否成功
+     */
+    public boolean appendToDefaultPath(ManufacturerInfo manufacturer) {
+        try {
+            String fileName = getCurrentFileName();
             String filePath = "exports/" + fileName;
             
             // 确保导出目录存在
             java.io.File exportDir = new java.io.File("exports");
             if (!exportDir.exists()) {
                 boolean created = exportDir.mkdirs();
+                if (!created) {
+                    System.err.println("❌ 无法创建导出目录");
+                    return false;
+                }
             }
             
-            boolean result = exportToExcel(manufacturers, filePath);
+            boolean result = appendToExcel(manufacturer, filePath);
             if (result) {
-                java.io.File file = new java.io.File(filePath);
+                System.out.println("✅ 数据已追加到Excel: " + filePath);
+                System.out.println("📁 文件位置: " + new java.io.File(filePath).getAbsolutePath());
             }
             return result;
         } catch (Exception e) {
+            System.err.println("❌ 追加Excel数据异常: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
