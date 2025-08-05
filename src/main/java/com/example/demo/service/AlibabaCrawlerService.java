@@ -293,11 +293,73 @@ public class AlibabaCrawlerService {
     }
 
     private void extractContactInfo(WebDriver driver, ManufacturerInfo info) {
+        // 首先等待页面加载完成
+        System.out.println("⏳ 等待联系方式页面加载...");
         try {
-            // 根据您提供的HTML结构提取联系方式信息
-            // 公司名称 - 在联系方式弹窗中的第二个div（紧跟在"联系方式"标题后面）
-            // 根据HTML结构：<div style="height: 20px; width: calc(100% - 20px); padding-left: 20px; font-family: PingFangSC; font-size: 20px; color: rgb(51, 51, 51); letter-spacing: 0px; line-height: 20px; margin-top: 24px; position: relative;">东莞市虹达电子科技有限公司</div>
-            WebElement companyElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 20px') and contains(@style, 'color: rgb(51, 51, 51)') and contains(@style, 'margin-top: 24px')]"));
+            Thread.sleep(3000); // 等待3秒让页面完全加载
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        // 调试：打印页面标题和URL
+        System.out.println("📄 当前页面标题: " + driver.getTitle());
+        System.out.println("🔗 当前页面URL: " + driver.getCurrentUrl());
+        
+        // 保存页面HTML代码到文件，用于分析页面结构
+        try {
+            String pageSource = driver.getPageSource();
+            String fileName = "contact_page_" + System.currentTimeMillis() + ".html";
+            java.nio.file.Files.write(java.nio.file.Paths.get(fileName), pageSource.getBytes("UTF-8"));
+            System.out.println("💾 已保存页面HTML到文件: " + fileName);
+            
+            // 同时打印页面中所有包含联系方式的文本
+            System.out.println("🔍 搜索页面中的联系方式信息...");
+            List<WebElement> allElements = driver.findElements(By.xpath("//*[contains(text(), '电话') or contains(text(), '手机') or contains(text(), '地址') or contains(text(), '传真') or contains(text(), '联系人') or contains(text(), '公司')]"));
+            System.out.println("📋 找到 " + allElements.size() + " 个包含联系方式的元素:");
+            for (int i = 0; i < Math.min(allElements.size(), 20); i++) {
+                try {
+                    String text = allElements.get(i).getText().trim();
+                    if (!text.isEmpty() && text.length() > 2) {
+                        System.out.println("   " + (i + 1) + ". " + text);
+                    }
+                } catch (Exception e) {
+                    // 忽略错误
+                }
+            }
+            
+            // 额外分析：查找所有div元素，看看实际的HTML结构
+            System.out.println("🔍 分析页面中的div元素结构...");
+            List<WebElement> allDivs = driver.findElements(By.xpath("//div"));
+            System.out.println("📋 找到 " + allDivs.size() + " 个div元素");
+            
+            // 查找包含特定文本的div元素
+            for (WebElement div : allDivs) {
+                try {
+                    String text = div.getText().trim();
+                    if (text.contains("电话") || text.contains("手机") || text.contains("地址") || text.contains("传真") || text.contains("联系人")) {
+                        System.out.println("📋 找到包含联系方式的div: " + text);
+                        // 获取该div的HTML属性
+                        String style = div.getAttribute("style");
+                        String className = div.getAttribute("class");
+                        System.out.println("   style: " + style);
+                        System.out.println("   class: " + className);
+                    }
+                } catch (Exception e) {
+                    // 忽略错误
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("❌ 保存页面HTML失败: " + e.getMessage());
+        }
+        
+        // 根据八爪鱼任务，使用更精确的XPath选择器
+        System.out.println("🔍 使用八爪鱼方式提取联系方式信息...");
+        
+        try {
+            // 根据八爪鱼任务，使用更精确的XPath选择器提取公司名称
+            System.out.println("🔍 尝试查找公司名称元素...");
+            // 使用八爪鱼任务中的XPath：//div[contains(@style, 'font-size: 20px') and contains(@style, 'color: rgb(51, 51, 51)')]
+            WebElement companyElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 20px') and contains(@style, 'color: rgb(51, 51, 51)')]"));
             if (companyElement != null) {
                 String companyName = (String) ((JavascriptExecutor) driver)
                         .executeScript("return arguments[0].textContent || arguments[0].innerText;", companyElement);
@@ -309,12 +371,34 @@ public class AlibabaCrawlerService {
             }
         } catch (Exception e) {
             System.err.println("❌ 提取公司名称失败: " + e.getMessage());
+            // 尝试备用方法
+            try {
+                System.out.println("🔄 尝试备用方法查找公司名称...");
+                List<WebElement> allDivs = driver.findElements(By.xpath("//div"));
+                for (WebElement div : allDivs) {
+                    try {
+                        String text = div.getText().trim();
+                        if (text.contains("科技有限公司") || text.contains("有限公司") || text.contains("公司")) {
+                            if (!text.equals("联系方式") && text.length() > 5) {
+                                info.setCompanyName(text);
+                                System.out.println("🏢 备用方法提取到公司名称: " + text);
+                                break;
+                            }
+                        }
+                    } catch (Exception ex) {
+                        // 忽略单个元素的错误
+                    }
+                }
+            } catch (Exception e2) {
+                System.err.println("❌ 备用方法也失败了: " + e2.getMessage());
+            }
         }
 
         try {
-            // 联系人姓名 - 根据HTML结构，在底部的联系人信息区域
-            // 根据HTML结构：<div style="height: 16px; font-family: PingFangSC; font-size: 16px; color: rgb(18, 18, 18); text-align: left; line-height: 16px; margin-top: 42px; margin-left: 112px;">邹兴爱女士</div>
-            WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 16px') and contains(@style, 'color: rgb(18, 18, 18)') and contains(@style, 'margin-top: 42px')]"));
+            // 根据八爪鱼任务，使用更精确的XPath选择器提取联系人
+            System.out.println("🔍 尝试查找联系人元素...");
+            // 使用八爪鱼任务中的XPath：//div[contains(@style, 'font-size: 16px') and contains(@style, 'color: rgb(18, 18, 18)')]
+            WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 16px') and contains(@style, 'color: rgb(18, 18, 18)')]"));
             String contactName = (String) ((JavascriptExecutor) driver)
                     .executeScript("return arguments[0].textContent || arguments[0].innerText;", contactNameElement);
             contactName = contactName.trim();
@@ -325,6 +409,7 @@ public class AlibabaCrawlerService {
         } catch (Exception e) {
             try {
                 // 备用选择器 - 查找包含"先生"或"女士"的文本
+                System.out.println("🔄 尝试备用方法查找联系人...");
                 WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(text(), '先生') or contains(text(), '女士')]"));
                 String contactName = (String) ((JavascriptExecutor) driver)
                         .executeScript("return arguments[0].textContent || arguments[0].innerText;", contactNameElement);
@@ -340,8 +425,9 @@ public class AlibabaCrawlerService {
         }
 
         try {
-            // 电话 - 根据HTML结构，查找包含"电话："的div后面的div
-            // 根据HTML结构：<div style="height: 14px; width: 500px; font-family: PingFangSC-Regular; font-size: 14px; color: rgb(51, 51, 51); letter-spacing: 0px; text-align: justify; line-height: 14px; display: inline-block; vertical-align: top; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; word-break: break-all;">86 0769 18820741593</div>
+            // 根据八爪鱼任务，使用更精确的XPath选择器提取电话
+            System.out.println("🔍 尝试查找电话元素...");
+            // 使用八爪鱼任务中的XPath：//div[contains(text(), '电话：')]/following-sibling::div[1]
             WebElement phoneElement = driver.findElement(By.xpath("//div[contains(text(), '电话：')]/following-sibling::div[1]"));
             String phone = (String) ((JavascriptExecutor) driver)
                     .executeScript("return arguments[0].textContent || arguments[0].innerText;", phoneElement);
@@ -351,13 +437,39 @@ public class AlibabaCrawlerService {
                 System.out.println("📞 提取到电话: " + phone);
             }
         } catch (Exception e) {
-            info.setPhoneNumber("未获取到联系电话");
-            System.err.println("❌ 提取电话失败");
+            System.err.println("❌ 提取电话失败: " + e.getMessage());
+            // 尝试备用方法
+            try {
+                System.out.println("🔄 尝试备用方法查找电话...");
+                List<WebElement> phoneElements = driver.findElements(By.xpath("//*[contains(text(), '电话')]"));
+                for (WebElement element : phoneElements) {
+                    try {
+                        String text = element.getText().trim();
+                        if (text.contains("电话") && text.length() > 5) {
+                            // 提取电话号码
+                            String phoneNumber = extractPhoneNumber(text);
+                            if (!phoneNumber.isEmpty()) {
+                                info.setPhoneNumber(phoneNumber);
+                                System.out.println("📞 备用方法提取到电话: " + phoneNumber);
+                                break;
+                            }
+                        }
+                    } catch (Exception ex) {
+                        // 忽略单个元素的错误
+                    }
+                }
+            } catch (Exception e2) {
+                System.err.println("❌ 备用方法也失败了: " + e2.getMessage());
+            }
+            if (info.getPhoneNumber() == null || info.getPhoneNumber().equals("未获取到联系电话")) {
+                info.setPhoneNumber("未获取到联系电话");
+            }
         }
 
         try {
-            // 手机 - 根据HTML结构，查找包含"手机："的div后面的div
-            // 根据HTML结构：<div style="height: 14px; width: 500px; font-family: PingFangSC-Regular; font-size: 14px; color: rgb(51, 51, 51); letter-spacing: 0px; text-align: justify; line-height: 14px; display: inline-block; vertical-align: top; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; word-break: break-all;">18820741593</div>
+            // 根据八爪鱼任务，使用更精确的XPath选择器提取手机
+            System.out.println("🔍 尝试查找手机元素...");
+            // 使用八爪鱼任务中的XPath：//div[contains(text(), '手机：')]/following-sibling::div[1]
             WebElement mobileElement = driver.findElement(By.xpath("//div[contains(text(), '手机：')]/following-sibling::div[1]"));
             String mobile = (String) ((JavascriptExecutor) driver)
                     .executeScript("return arguments[0].textContent || arguments[0].innerText;", mobileElement);
@@ -368,13 +480,36 @@ public class AlibabaCrawlerService {
                 System.out.println("📱 提取到手机: " + mobile);
             }
         } catch (Exception e) {
-            // 如果手机号获取失败，保持原来的电话
-            System.err.println("❌ 提取手机号失败");
+            System.err.println("❌ 提取手机号失败: " + e.getMessage());
+            // 尝试备用方法
+            try {
+                System.out.println("🔄 尝试备用方法查找手机...");
+                List<WebElement> mobileElements = driver.findElements(By.xpath("//*[contains(text(), '手机')]"));
+                for (WebElement element : mobileElements) {
+                    try {
+                        String text = element.getText().trim();
+                        if (text.contains("手机") && text.length() > 5) {
+                            // 提取手机号码
+                            String mobileNumber = extractPhoneNumber(text);
+                            if (!mobileNumber.isEmpty()) {
+                                info.setPhoneNumber(mobileNumber);
+                                System.out.println("📱 备用方法提取到手机: " + mobileNumber);
+                                break;
+                            }
+                        }
+                    } catch (Exception ex) {
+                        // 忽略单个元素的错误
+                    }
+                }
+            } catch (Exception e2) {
+                System.err.println("❌ 备用方法也失败了: " + e2.getMessage());
+            }
         }
 
         try {
-            // 地址 - 根据HTML结构，查找包含"地址："的div后面的div
-            // 根据HTML结构：<div style="height: 14px; width: 500px; font-family: PingFangSC-Regular; font-size: 14px; color: rgb(51, 51, 51); letter-spacing: 0px; text-align: justify; line-height: 14px; display: inline-block; vertical-align: top; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; word-break: break-all;" title="广东省东莞市浮岗村香芒西路南六街5号中达电子3楼">广东省东莞市浮岗村香芒西路南六街5号中达电子3楼</div>
+            // 根据八爪鱼任务，使用更精确的XPath选择器提取地址
+            System.out.println("🔍 尝试查找地址元素...");
+            // 使用八爪鱼任务中的XPath：//div[contains(text(), '地址：')]/following-sibling::div[1]
             WebElement addressElement = driver.findElement(By.xpath("//div[contains(text(), '地址：')]/following-sibling::div[1]"));
             String address = (String) ((JavascriptExecutor) driver)
                     .executeScript("return arguments[0].textContent || arguments[0].innerText;", addressElement);
@@ -384,13 +519,39 @@ public class AlibabaCrawlerService {
                 System.out.println("📍 提取到地址: " + address);
             }
         } catch (Exception e) {
-            info.setAddress("未获取到地址");
-            System.err.println("❌ 提取地址失败");
+            System.err.println("❌ 提取地址失败: " + e.getMessage());
+            // 尝试备用方法
+            try {
+                System.out.println("🔄 尝试备用方法查找地址...");
+                List<WebElement> addressElements = driver.findElements(By.xpath("//*[contains(text(), '地址')]"));
+                for (WebElement element : addressElements) {
+                    try {
+                        String text = element.getText().trim();
+                        if (text.contains("地址") && text.length() > 10) {
+                            // 提取地址信息
+                            String address = extractAddress(text);
+                            if (!address.isEmpty()) {
+                                info.setAddress(address);
+                                System.out.println("📍 备用方法提取到地址: " + address);
+                                break;
+                            }
+                        }
+                    } catch (Exception ex) {
+                        // 忽略单个元素的错误
+                    }
+                }
+            } catch (Exception e2) {
+                System.err.println("❌ 备用方法也失败了: " + e2.getMessage());
+            }
+            if (info.getAddress() == null || info.getAddress().equals("未获取到地址")) {
+                info.setAddress("未获取到地址");
+            }
         }
 
         try {
-            // 传真 - 根据HTML结构，查找包含"传真："的div后面的div
-            // 根据HTML结构：<div style="height: 14px; width: 500px; font-family: PingFangSC-Regular; font-size: 14px; color: rgb(51, 51, 51); letter-spacing: 0px; text-align: justify; line-height: 14px; display: inline-block; vertical-align: top; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; word-break: break-all;">暂无</div>
+            // 根据八爪鱼任务，使用更精确的XPath选择器提取传真
+            System.out.println("🔍 尝试查找传真元素...");
+            // 使用八爪鱼任务中的XPath：//div[contains(text(), '传真：')]/following-sibling::div[1]
             WebElement faxElement = driver.findElement(By.xpath("//div[contains(text(), '传真：')]/following-sibling::div[1]"));
             String fax = (String) ((JavascriptExecutor) driver)
                     .executeScript("return arguments[0].textContent || arguments[0].innerText;", faxElement);
@@ -402,8 +563,8 @@ public class AlibabaCrawlerService {
                 info.setBusinessType("未获取到经营模式");
             }
         } catch (Exception e) {
+            System.err.println("❌ 提取传真失败: " + e.getMessage());
             info.setBusinessType("未获取到经营模式");
-            System.err.println("❌ 提取传真失败");
         }
 
         try {
@@ -442,6 +603,36 @@ public class AlibabaCrawlerService {
         }
         
         System.out.println("📋 综合联系方式: " + info.getContactInfo());
+    }
+    
+    // 辅助方法：从文本中提取电话号码
+    private String extractPhoneNumber(String text) {
+        // 移除常见的非数字字符，保留数字、空格、+、-、.
+        String cleaned = text.replaceAll("[^0-9\\s\\+\\-\\.]", "");
+        // 查找连续的数字序列
+        String[] parts = cleaned.split("\\s+");
+        for (String part : parts) {
+            if (part.matches(".*\\d{7,}.*")) { // 至少7位数字
+                return part.trim();
+            }
+        }
+        return "";
+    }
+    
+    // 辅助方法：从文本中提取地址
+    private String extractAddress(String text) {
+        // 查找包含"地址："的文本，提取后面的内容
+        if (text.contains("地址：")) {
+            String[] parts = text.split("地址：");
+            if (parts.length > 1) {
+                return parts[1].trim();
+            }
+        }
+        // 如果没有"地址："，尝试查找包含省市的文本
+        if (text.contains("省") || text.contains("市") || text.contains("区") || text.contains("县")) {
+            return text.trim();
+        }
+        return "";
     }
 
     private void scrollPage(WebDriver driver) {
