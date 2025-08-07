@@ -420,15 +420,33 @@ public class AlibabaCrawlerService {
                 System.out.println("联系人方法1失败，尝试方法2...");
             }
 
-            // 方法2：查找包含先生/女士的文本
+            // 方法2：查找包含先生/女士的文本（不限div）
             if (contactName.isEmpty()) {
                 try {
-                    WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(text(), '先生') or contains(text(), '女士')]"));
-                    contactName = (String) ((JavascriptExecutor) driver)
-                            .executeScript("return arguments[0].textContent || arguments[0].innerText;", contactNameElement);
-                    contactName = contactName.trim();
+                    List<WebElement> elements = driver.findElements(By.xpath("//*[contains(text(), '先生') or contains(text(), '女士')]"));
+                    for (WebElement el : elements) {
+                        String text = el.getText().trim();
+                        if (text.matches("[\\u4e00-\\u9fa5]{2,5}.*(先生|女士)")) {
+                            contactName = text;
+                            break;
+                        }
+                    }
                 } catch (Exception e) {
-                    System.out.println("联系人方法2失败");
+                    System.out.println("联系人方法2失败，尝试方法3...");
+                }
+            }
+
+            // 方法3：遍历所有元素，正则兜底
+            if (contactName.isEmpty()) {
+                try {
+                    String pageSource = driver.getPageSource();
+                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("([\\u4e00-\\u9fa5]{2,5})[\\s　]*(先生|女士)");
+                    java.util.regex.Matcher matcher = pattern.matcher(pageSource);
+                    if (matcher.find()) {
+                        contactName = matcher.group();
+                    }
+                } catch (Exception e) {
+                    System.out.println("联系人方法3失败");
                 }
             }
 
@@ -437,6 +455,7 @@ public class AlibabaCrawlerService {
                 System.out.println("👤 提取到联系人: " + contactName);
             } else {
                 info.setContactPerson("");
+                System.err.println("❌ 所有方法都未能提取到联系人");
             }
         } catch (Exception e) {
             info.setContactPerson("");
