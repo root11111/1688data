@@ -407,59 +407,69 @@ public class AlibabaCrawlerService {
 
         // 联系人 - 使用多种选择器
         try {
-            System.out.println("🔍 尝试查找联系人元素...");
+            System.out.println("【联系人】开始提取联系人...");
             String contactName = "";
 
             // 方法1：使用八爪鱼任务中的XPath
+            System.out.println("【联系人】方法1：用XPath查找div...");
             try {
                 WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 16px') and contains(@style, 'color: rgb(18, 18, 18)')]"));
                 contactName = (String) ((JavascriptExecutor) driver)
                         .executeScript("return arguments[0].textContent || arguments[0].innerText;", contactNameElement);
                 contactName = contactName.trim();
+                System.out.println("【联系人】方法1找到：" + contactName);
             } catch (Exception e) {
-                System.out.println("联系人方法1失败，尝试方法2...");
+                System.out.println("【联系人】方法1失败：" + e.getMessage());
             }
 
             // 方法2：查找包含先生/女士的文本（不限div）
             if (contactName.isEmpty()) {
+                System.out.println("【联系人】方法2：遍历所有含先生/女士的节点...");
                 try {
                     List<WebElement> elements = driver.findElements(By.xpath("//*[contains(text(), '先生') or contains(text(), '女士')]"));
                     for (WebElement el : elements) {
                         String text = el.getText().trim();
+                        System.out.println("【联系人】方法2遍历到节点文本：" + text);
                         if (text.matches("[\\u4e00-\\u9fa5]{2,5}.*(先生|女士)")) {
                             contactName = text;
+                            System.out.println("【联系人】方法2匹配到联系人：" + contactName);
                             break;
                         }
                     }
                 } catch (Exception e) {
-                    System.out.println("联系人方法2失败，尝试方法3...");
+                    System.out.println("【联系人】方法2失败：" + e.getMessage());
                 }
             }
 
             // 方法3：遍历所有元素，正则兜底
             if (contactName.isEmpty()) {
+                System.out.println("【联系人】方法3：正则兜底，页面源码长度：" + driver.getPageSource().length());
                 try {
                     String pageSource = driver.getPageSource();
                     java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("([\\u4e00-\\u9fa5]{2,5})[\\s　]*(先生|女士)");
                     java.util.regex.Matcher matcher = pattern.matcher(pageSource);
                     if (matcher.find()) {
                         contactName = matcher.group();
+                        System.out.println("【联系人】正则匹配到：" + contactName);
+                    } else {
+                        System.out.println("【联系人】正则未匹配到联系人");
                     }
                 } catch (Exception e) {
-                    System.out.println("联系人方法3失败");
+                    System.out.println("【联系人】方法3失败：" + e.getMessage());
                 }
             }
 
+            // 最终结果
             if (!contactName.isEmpty()) {
                 info.setContactPerson(contactName);
-                System.out.println("👤 提取到联系人: " + contactName);
+                System.out.println("【联系人】最终提取结果：" + contactName);
             } else {
                 info.setContactPerson("");
-                System.err.println("❌ 所有方法都未能提取到联系人");
+                System.err.println("【联系人】所有方法都未能提取到联系人");
             }
         } catch (Exception e) {
             info.setContactPerson("");
-            System.err.println("❌ 提取联系人失败: " + e.getMessage());
+            System.err.println("【联系人】提取联系人失败: " + e.getMessage());
         }
 
         // 电话 - 使用多种选择器
@@ -701,36 +711,6 @@ public class AlibabaCrawlerService {
         }
 
         System.out.println("📋 综合联系方式: " + info.getContactInfo());
-    }
-
-    // 辅助方法：从文本中提取电话号码
-    private String extractPhoneNumber(String text) {
-        // 移除常见的非数字字符，保留数字、空格、+、-、.
-        String cleaned = text.replaceAll("[^0-9\\s\\+\\-\\.]", "");
-        // 查找连续的数字序列
-        String[] parts = cleaned.split("\\s+");
-        for (String part : parts) {
-            if (part.matches(".*\\d{7,}.*")) { // 至少7位数字
-                return part.trim();
-            }
-        }
-        return "";
-    }
-
-    // 辅助方法：从文本中提取地址
-    private String extractAddress(String text) {
-        // 查找包含"地址："的文本，提取后面的内容
-        if (text.contains("地址：")) {
-            String[] parts = text.split("地址：");
-            if (parts.length > 1) {
-                return parts[1].trim();
-            }
-        }
-        // 如果没有"地址："，尝试查找包含省市的文本
-        if (text.contains("省") || text.contains("市") || text.contains("区") || text.contains("县")) {
-            return text.trim();
-        }
-        return "";
     }
 
     private void scrollPage(WebDriver driver) {
