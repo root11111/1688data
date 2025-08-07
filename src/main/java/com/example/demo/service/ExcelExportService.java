@@ -48,28 +48,28 @@ public class ExcelExportService {
     public boolean exportToExcel(List<ManufacturerInfo> manufacturers, String filePath) {
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("1688供应商信息");
-            
+
             // 创建标题行样式
             CellStyle headerStyle = createHeaderStyle(workbook);
-            
+
             // 创建标题行
             Row headerRow = sheet.createRow(0);
             String[] headers = {
-                "公司名称", "联系人", "联系电话", "地址", "主营产品", 
-                "产品标题", "价格", "爬取时间", "来源URL", "页码"
+                    "公司名称", "联系人", "联系电话", "地址", "主营产品",
+                    "产品标题", "价格", "爬取时间", "来源URL", "页码"
             };
-            
+
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
                 cell.setCellStyle(headerStyle);
             }
-            
+
             // 填充数据行
             for (int i = 0; i < manufacturers.size(); i++) {
                 ManufacturerInfo info = manufacturers.get(i);
                 Row dataRow = sheet.createRow(i + 1);
-                
+
                 dataRow.createCell(0).setCellValue(info.getCompanyName() != null ? info.getCompanyName() : "");
                 dataRow.createCell(1).setCellValue(info.getContactPerson() != null ? info.getContactPerson() : "");
                 dataRow.createCell(2).setCellValue(info.getPhoneNumber() != null ? info.getPhoneNumber() : "");
@@ -77,29 +77,29 @@ public class ExcelExportService {
                 dataRow.createCell(4).setCellValue(info.getMainProducts() != null ? info.getMainProducts() : "");
                 dataRow.createCell(5).setCellValue(info.getProductTitle() != null ? info.getProductTitle() : "");
                 dataRow.createCell(6).setCellValue(info.getPrice() != null ? info.getPrice() : "");
-                dataRow.createCell(7).setCellValue(info.getCrawlTime() != null ? 
-                    info.getCrawlTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
+                dataRow.createCell(7).setCellValue(info.getCrawlTime() != null ?
+                        info.getCrawlTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
                 dataRow.createCell(8).setCellValue(info.getSourceUrl() != null ? info.getSourceUrl() : "");
                 dataRow.createCell(9).setCellValue(info.getPageNumber() != null ? info.getPageNumber() : -1);
             }
-            
+
             // 自动调整列宽
             for (int i = 0; i < headers.length; i++) {
                 sheet.autoSizeColumn(i);
             }
-            
+
             // 保存文件
             try (FileOutputStream fileOut = new FileOutputStream(filePath)) {
                 workbook.write(fileOut);
                 return true;
             }
-            
+
         } catch (IOException e) {
             e.printStackTrace();
             return false;
         }
     }
-    
+
     /**
      * 生成默认的Excel文件名
      * @return 文件名
@@ -109,7 +109,7 @@ public class ExcelExportService {
         String timestamp = now.format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         return "1688供应商信息_" + timestamp + ".xlsx";
     }
-    
+
     /**
      * 创建标题行样式
      * @param workbook 工作簿
@@ -118,26 +118,26 @@ public class ExcelExportService {
     private CellStyle createHeaderStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         Font font = workbook.createFont();
-        
+
         // 设置字体
         font.setBold(true);
         font.setFontHeightInPoints((short) 12);
         font.setColor(IndexedColors.WHITE.getIndex());
-        
+
         // 设置背景色
         style.setFillForegroundColor(IndexedColors.BLUE.getIndex());
         style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        
+
         // 设置边框
         style.setBorderTop(BorderStyle.THIN);
         style.setBorderBottom(BorderStyle.THIN);
         style.setBorderLeft(BorderStyle.THIN);
         style.setBorderRight(BorderStyle.THIN);
-        
+
         style.setFont(font);
         return style;
     }
-    
+
     /**
      * 导出到默认路径
      * @param manufacturers 供应商信息列表
@@ -147,18 +147,18 @@ public class ExcelExportService {
         try {
             System.out.println("📊 Excel导出服务开始...");
             System.out.println("📊 数据条数: " + (manufacturers != null ? manufacturers.size() : "null"));
-            
+
             String fileName = generateDefaultFileName();
             String filePath = "exports/" + fileName;
-            
+
             System.out.println("📊 文件名: " + fileName);
             System.out.println("📊 文件路径: " + filePath);
-            
+
             // 确保导出目录存在
             java.io.File exportDir = new java.io.File("exports");
             System.out.println("📊 检查导出目录: " + exportDir.getAbsolutePath());
             System.out.println("📊 目录是否存在: " + exportDir.exists());
-            
+
             if (!exportDir.exists()) {
                 System.out.println("📊 创建导出目录...");
                 boolean created = exportDir.mkdirs();
@@ -168,11 +168,11 @@ public class ExcelExportService {
                     return false;
                 }
             }
-            
+
             System.out.println("📊 调用exportToExcel方法...");
             boolean result = exportToExcel(manufacturers, filePath);
             System.out.println("📊 exportToExcel返回结果: " + result);
-            
+
             if (result) {
                 java.io.File file = new java.io.File(filePath);
                 System.out.println("📊 检查生成的文件: " + file.getAbsolutePath());
@@ -181,7 +181,7 @@ public class ExcelExportService {
                     System.out.println("📊 文件大小: " + file.length() + " 字节");
                 }
             }
-            
+
             return result;
         } catch (Exception e) {
             System.err.println("❌ Excel导出服务异常: " + e.getMessage());
@@ -202,7 +202,7 @@ public class ExcelExportService {
             java.io.File file = new java.io.File(filePath);
             Workbook workbook;
             Sheet sheet;
-            
+
             if (file.exists()) {
                 // 文件存在，读取现有文件
                 try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
@@ -213,26 +213,26 @@ public class ExcelExportService {
                 // 文件不存在，创建新文件
                 workbook = new XSSFWorkbook();
                 sheet = workbook.createSheet("1688供应商信息");
-                
+
                 // 创建标题行
                 CellStyle headerStyle = createHeaderStyle(workbook);
                 Row headerRow = sheet.createRow(0);
                 String[] headers = {
-                    "公司名称", "联系人", "联系电话", "地址", "主营产品", 
-                    "产品标题", "价格", "爬取时间", "来源URL", "页码"
+                        "公司名称", "联系人", "联系电话", "地址", "主营产品",
+                        "产品标题", "价格", "爬取时间", "来源URL", "页码"
                 };
-                
+
                 for (int i = 0; i < headers.length; i++) {
                     Cell cell = headerRow.createCell(i);
                     cell.setCellValue(headers[i]);
                     cell.setCellStyle(headerStyle);
                 }
             }
-            
+
             // 添加新数据行
             int lastRowNum = sheet.getLastRowNum();
             Row dataRow = sheet.createRow(lastRowNum + 1);
-            
+
             dataRow.createCell(0).setCellValue(manufacturer.getCompanyName() != null ? manufacturer.getCompanyName() : "");
             dataRow.createCell(1).setCellValue(manufacturer.getContactPerson() != null ? manufacturer.getContactPerson() : "");
             dataRow.createCell(2).setCellValue(manufacturer.getPhoneNumber() != null ? manufacturer.getPhoneNumber() : "");
@@ -240,11 +240,11 @@ public class ExcelExportService {
             dataRow.createCell(4).setCellValue(manufacturer.getMainProducts() != null ? manufacturer.getMainProducts() : "");
             dataRow.createCell(5).setCellValue(manufacturer.getProductTitle() != null ? manufacturer.getProductTitle() : "");
             dataRow.createCell(6).setCellValue(manufacturer.getPrice() != null ? manufacturer.getPrice() : "");
-            dataRow.createCell(7).setCellValue(manufacturer.getCrawlTime() != null ? 
-                manufacturer.getCrawlTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
+            dataRow.createCell(7).setCellValue(manufacturer.getCrawlTime() != null ?
+                    manufacturer.getCrawlTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
             dataRow.createCell(8).setCellValue(manufacturer.getSourceUrl() != null ? manufacturer.getSourceUrl() : "");
             dataRow.createCell(9).setCellValue(manufacturer.getPageNumber() != null ? manufacturer.getPageNumber() : -1);
-            
+
             // 保存文件
             try (FileOutputStream fileOut = new FileOutputStream(filePath)) {
                 workbook.write(fileOut);
@@ -252,14 +252,14 @@ public class ExcelExportService {
             } finally {
                 workbook.close();
             }
-            
+
         } catch (IOException e) {
             System.err.println("❌ 追加Excel数据失败: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
-    
+
     /**
      * 追加数据到默认路径的Excel文件
      * @param manufacturer 单个供应商信息
@@ -269,7 +269,7 @@ public class ExcelExportService {
         try {
             String fileName = getCurrentFileName();
             String filePath = "exports/" + fileName;
-            
+
             // 确保导出目录存在
             java.io.File exportDir = new java.io.File("exports");
             if (!exportDir.exists()) {
@@ -279,7 +279,7 @@ public class ExcelExportService {
                     return false;
                 }
             }
-            
+
             boolean result = appendToExcel(manufacturer, filePath);
             if (result) {
                 System.out.println("✅ 数据已追加到Excel: " + filePath);

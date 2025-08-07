@@ -7,7 +7,9 @@ import java.time.LocalDateTime;
 public class ManufacturerInfo {
     private String companyName;      // 公司名称
     private String contactPerson;    // 联系人
-    private String phoneNumber;     // 联系电话
+    private String phoneNumber;     // 联系电话（保留兼容性）
+    private String mobilePhone;     // 手机号
+    private String landlinePhone;   // 座机号
     private String address;         // 地址
     private String mainProducts;    // 主营产品
     private String businessType;    // 经营模式
@@ -26,6 +28,7 @@ public class ManufacturerInfo {
     private String certification;   // 认证信息
     private String contactInfo;     // 联系方式信息（综合）
     private String fax; // 传真
+    private String screenshotPath;  // 联系人页面截图路径
     private LocalDateTime crawlTime; // 爬取时间
     private String sourceUrl;       // 来源URL
     private Integer pageNumber;

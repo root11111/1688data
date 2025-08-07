@@ -35,7 +35,7 @@ public class AlibabaCrawlerService {
 
         // 使用增强的反检测配置
         ChromeOptions options = antiDetectionService.getEnhancedChromeOptions();
-        
+
         // 如果需要无头模式，取消下面这行注释
         // options.addArguments("--headless");
 
@@ -48,16 +48,16 @@ public class AlibabaCrawlerService {
             // 1. 打开网页
             System.out.println("正在访问页面: " + url);
             driver.get(url);
-            
+
             // 执行反检测脚本
             antiDetectionService.executeAntiDetectionScripts(driver);
-            
+
             // 等待页面加载
             wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]")));
-            
+
             // 模拟人类行为
             antiDetectionService.simulateHumanBehavior(driver);
-            
+
             // 随机等待，模拟人类行为
             antiDetectionService.randomWait(2000, 5000);
 
@@ -71,19 +71,19 @@ public class AlibabaCrawlerService {
                 // 4. 获取商品列表 - 使用八爪鱼的方式：不固定元素列表，动态获取
                 List<WebElement> items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
                 System.out.println("找到 " + items.size() + " 个商品");
-                
+
                 for (int i = 0; i < items.size(); i++) {
                     try {
                         // 重新获取元素列表，防止StaleElementReferenceException
                         items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
                         if (i >= items.size()) break;
-                        
+
                         WebElement item = items.get(i);
-                        
+
                         // 提取商品基本信息
                         ManufacturerInfo info = extractBasicInfo(item, url, driver);
                         info.setPageNumber(page); // 设置页码
-                        
+
                         // 5. 点击列表链接进入详情页
                         String mainWindow = driver.getWindowHandle();
                         ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", item);
@@ -91,14 +91,14 @@ public class AlibabaCrawlerService {
 
                         // 按照八爪鱼的方式：点击列表链接
                         System.out.println("🖱️ 尝试点击第 " + (i + 1) + " 个商品链接...");
-                        
+
                         // 在商品卡片中查找链接元素
                         WebElement linkElement = item.findElement(By.xpath(".//a[contains(@href, 'dj.1688.com/ci_bb')]"));
-                        
+
                         // 直接点击链接元素
                         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", linkElement);
                         antiDetectionService.randomWait(2000, 4000);
-                        
+
                         // 检查是否打开了新页面
                         if (driver.getWindowHandles().size() > 1) {
                             // 切换到新标签页
@@ -108,7 +108,7 @@ public class AlibabaCrawlerService {
                                     break;
                                 }
                             }
-                            
+
                             System.out.println("✅ 成功打开商品详情页");
                         } else {
                             System.out.println("⚠️ 点击链接未打开新页面，尝试获取链接直接打开");
@@ -116,7 +116,7 @@ public class AlibabaCrawlerService {
                             String productUrl = getProductUrl(item);
                             if (productUrl != null && !productUrl.isEmpty()) {
                                 ((JavascriptExecutor) driver).executeScript("window.open(arguments[0]);", productUrl);
-                                
+
                                 // 切换到新标签页
                                 for (String windowHandle : driver.getWindowHandles()) {
                                     if (!windowHandle.equals(mainWindow)) {
@@ -140,7 +140,7 @@ public class AlibabaCrawlerService {
 
                         // 等待新页面加载
                         antiDetectionService.randomWait(2000, 4000);
-                        
+
                         // 检查详情页是否有验证码
                         if (captchaHandler.checkForCaptcha(driver)) {
                             System.out.println("⚠️  详情页检测到验证码！");
@@ -153,12 +153,12 @@ public class AlibabaCrawlerService {
                         try {
                             // 等待联系方式按钮出现
                             WebElement contactButton = wait.until(ExpectedConditions.elementToBeClickable(
-                                By.xpath("//a[contains(text(), '联系方式')]")));
-                            
+                                    By.xpath("//a[contains(text(), '联系方式')]")));
+
                             // 6. 点击联系方式按钮
                             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", contactButton);
                             antiDetectionService.randomWait(2000, 4000);
-                            
+
                             // 再次检查点击联系方式后是否出现验证码
                             if (captchaHandler.checkForCaptcha(driver)) {
                                 System.out.println("⚠️  点击联系方式后检测到验证码！");
@@ -166,21 +166,21 @@ public class AlibabaCrawlerService {
                                     captchaHandler.waitForManualCaptcha();
                                 }
                             }
-                            
+
                             // 7. 提取联系方式数据
                             extractContactInfo(driver, info);
-                            
+
                         } catch (Exception e) {
                             System.err.println("提取详细信息失败: " + e.getMessage());
                         }
 
                         // 关闭所有新打开的标签页，切换回主窗口
                         System.out.println("🔄 关闭所有新打开的标签页...");
-                        
+
                         // 获取当前所有窗口句柄
                         java.util.Set<String> allWindowHandles = driver.getWindowHandles();
                         System.out.println("📊 当前窗口数量: " + allWindowHandles.size());
-                        
+
                         // 关闭除了主窗口之外的所有标签页
                         for (String windowHandle : allWindowHandles) {
                             if (!windowHandle.equals(mainWindow)) {
@@ -193,7 +193,7 @@ public class AlibabaCrawlerService {
                                 }
                             }
                         }
-                        
+
                         // 切换回主窗口
                         driver.switchTo().window(mainWindow);
                         System.out.println("✅ 已切换回主窗口: " + driver.getTitle());
@@ -246,7 +246,7 @@ public class AlibabaCrawlerService {
         try {
             // 使用JavaScript获取链接，避免堆栈溢出
             WebElement link = item.findElement(By.xpath(".//a[contains(@href, 'dj.1688.com/ci_bb')]"));
-            
+
             // 直接尝试获取href属性，如果失败则跳过
             try {
                 String href = link.getAttribute("href");
@@ -257,7 +257,7 @@ public class AlibabaCrawlerService {
             } catch (Exception e) {
                 System.out.println("⚠️ 获取href属性失败，跳过此商品");
             }
-            
+
             System.out.println("❌ 未找到有效的商品链接");
             return null;
         } catch (Exception e) {
@@ -333,23 +333,23 @@ public class AlibabaCrawlerService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        
+
         // 调试：打印页面标题和URL
         System.out.println("📄 当前页面标题: " + driver.getTitle());
         System.out.println("🔗 当前页面URL: " + driver.getCurrentUrl());
-        
+
         // 更新来源URL为联系方式页面的URL
         info.setSourceUrl(driver.getCurrentUrl());
         System.out.println("📝 已更新来源URL为联系方式页面: " + driver.getCurrentUrl());
-        
+
         // 根据八爪鱼任务，使用更精确的XPath选择器
         System.out.println("🔍 使用八爪鱼方式提取联系方式信息...");
-        
+
         // 公司名称 - 使用多种选择器
         try {
             System.out.println("🔍 尝试查找公司名称元素...");
             String companyName = "";
-            
+
             // 方法1：使用八爪鱼任务中的XPath
             try {
                 WebElement companyElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 20px') and contains(@style, 'color: rgb(51, 51, 51)')]"));
@@ -359,7 +359,7 @@ public class AlibabaCrawlerService {
             } catch (Exception e) {
                 System.out.println("方法1失败，尝试方法2...");
             }
-            
+
             // 方法2：查找包含公司关键词的div
             if (companyName.isEmpty()) {
                 try {
@@ -367,8 +367,8 @@ public class AlibabaCrawlerService {
                     for (WebElement div : allDivs) {
                         try {
                             String text = div.getText().trim();
-                            if ((text.contains("科技有限公司") || text.contains("有限公司") || text.contains("公司")) 
-                                && !text.equals("联系方式") && text.length() > 5 && text.length() < 50) {
+                            if ((text.contains("科技有限公司") || text.contains("有限公司") || text.contains("公司"))
+                                    && !text.equals("联系方式") && text.length() > 5 && text.length() < 50) {
                                 companyName = text;
                                 break;
                             }
@@ -380,7 +380,7 @@ public class AlibabaCrawlerService {
                     System.out.println("方法2失败，尝试方法3...");
                 }
             }
-            
+
             // 方法3：查找页面标题中的公司名
             if (companyName.isEmpty()) {
                 try {
@@ -392,7 +392,7 @@ public class AlibabaCrawlerService {
                     System.out.println("方法3失败");
                 }
             }
-            
+
             if (!companyName.isEmpty()) {
                 info.setCompanyName(companyName);
                 System.out.println("🏢 提取到公司名称: " + companyName);
@@ -409,7 +409,7 @@ public class AlibabaCrawlerService {
         try {
             System.out.println("🔍 尝试查找联系人元素...");
             String contactName = "";
-            
+
             // 方法1：使用八爪鱼任务中的XPath
             try {
                 WebElement contactNameElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 16px') and contains(@style, 'color: rgb(18, 18, 18)')]"));
@@ -419,7 +419,7 @@ public class AlibabaCrawlerService {
             } catch (Exception e) {
                 System.out.println("联系人方法1失败，尝试方法2...");
             }
-            
+
             // 方法2：查找包含先生/女士的文本
             if (contactName.isEmpty()) {
                 try {
@@ -431,7 +431,7 @@ public class AlibabaCrawlerService {
                     System.out.println("联系人方法2失败");
                 }
             }
-            
+
             if (!contactName.isEmpty()) {
                 info.setContactPerson(contactName);
                 System.out.println("👤 提取到联系人: " + contactName);
@@ -447,7 +447,7 @@ public class AlibabaCrawlerService {
         try {
             System.out.println("🔍 尝试查找电话元素...");
             String phone = "";
-            
+
             // 方法1：使用原有的XPath
             try {
                 WebElement phoneElement = driver.findElement(By.xpath("//div[contains(text(), '电话：')]/following-sibling::div[1]"));
@@ -457,7 +457,7 @@ public class AlibabaCrawlerService {
             } catch (Exception e) {
                 System.out.println("电话方法1失败，尝试方法2...");
             }
-            
+
             // 方法2：查找包含电话关键词的文本
             if (phone.isEmpty()) {
                 try {
@@ -479,7 +479,7 @@ public class AlibabaCrawlerService {
                     System.out.println("电话方法2失败，尝试方法3...");
                 }
             }
-            
+
             // 方法3：正则兜底方案
             if (phone.isEmpty()) {
                 try {
@@ -494,7 +494,7 @@ public class AlibabaCrawlerService {
                     System.err.println("❌ 正则兜底提取电话异常: " + e.getMessage());
                 }
             }
-            
+
             if (!phone.isEmpty() && !phone.equals("暂无")) {
                 info.setPhoneNumber(phone);
                 System.out.println("📞 提取到电话: " + phone);
@@ -511,7 +511,7 @@ public class AlibabaCrawlerService {
         try {
             System.out.println("🔍 尝试查找手机元素...");
             String mobile = "";
-            
+
             // 方法1：使用原有的XPath
             try {
                 WebElement mobileElement = driver.findElement(By.xpath("//div[contains(text(), '手机：')]/following-sibling::div[1]"));
@@ -521,7 +521,7 @@ public class AlibabaCrawlerService {
             } catch (Exception e) {
                 System.out.println("手机方法1失败，尝试方法2...");
             }
-            
+
             // 方法2：查找包含手机关键词的文本
             if (mobile.isEmpty()) {
                 try {
@@ -543,7 +543,7 @@ public class AlibabaCrawlerService {
                     System.out.println("手机方法2失败");
                 }
             }
-            
+
             if (!mobile.isEmpty() && !mobile.equals("暂无")) {
                 // 如果手机号不为空，优先使用手机号
                 info.setPhoneNumber(mobile);
@@ -560,7 +560,7 @@ public class AlibabaCrawlerService {
         try {
             System.out.println("🔍 尝试查找地址元素...");
             String address = "";
-            
+
             // 方法1：使用原有的XPath
             try {
                 WebElement addressElement = driver.findElement(By.xpath("//div[contains(text(), '地址：')]/following-sibling::div[1]"));
@@ -570,7 +570,7 @@ public class AlibabaCrawlerService {
             } catch (Exception e) {
                 System.out.println("地址方法1失败，尝试方法2...");
             }
-            
+
             // 方法2：查找包含地址关键词的文本
             if (address.isEmpty()) {
                 try {
@@ -590,7 +590,7 @@ public class AlibabaCrawlerService {
                     System.out.println("地址方法2失败");
                 }
             }
-            
+
             if (!address.isEmpty()) {
                 info.setAddress(address);
                 System.out.println("📍 提取到地址: " + address);
@@ -606,7 +606,7 @@ public class AlibabaCrawlerService {
         try {
             System.out.println("🔍 尝试查找传真元素...");
             String fax = "";
-            
+
             try {
                 WebElement faxElement = driver.findElement(By.xpath("//div[contains(text(), '传真：')]/following-sibling::div[1]"));
                 fax = (String) ((JavascriptExecutor) driver)
@@ -615,7 +615,7 @@ public class AlibabaCrawlerService {
             } catch (Exception e) {
                 System.out.println("传真方法1失败，尝试方法2...");
             }
-            
+
             if (fax.isEmpty()) {
                 try {
                     List<WebElement> faxElements = driver.findElements(By.xpath("//*[contains(text(), '传真') or contains(text(), 'Fax')]"));
@@ -634,7 +634,7 @@ public class AlibabaCrawlerService {
                     System.out.println("传真方法2失败");
                 }
             }
-            
+
             if (!fax.isEmpty()) {
                 info.setFax(fax);
                 System.out.println("📠 提取到传真: " + fax);
@@ -674,16 +674,16 @@ public class AlibabaCrawlerService {
             }
             contactInfoBuilder.append("地址: ").append(info.getAddress());
         }
-        
+
         if (contactInfoBuilder.length() > 0) {
             info.setContactInfo(contactInfoBuilder.toString());
         } else {
             info.setContactInfo("未获取到联系方式");
         }
-        
+
         System.out.println("📋 综合联系方式: " + info.getContactInfo());
     }
-    
+
     // 辅助方法：从文本中提取电话号码
     private String extractPhoneNumber(String text) {
         // 移除常见的非数字字符，保留数字、空格、+、-、.
@@ -697,7 +697,7 @@ public class AlibabaCrawlerService {
         }
         return "";
     }
-    
+
     // 辅助方法：从文本中提取地址
     private String extractAddress(String text) {
         // 查找包含"地址："的文本，提取后面的内容
@@ -730,13 +730,13 @@ public class AlibabaCrawlerService {
         try {
             // 使用您提供的XPath查找下一页按钮
             WebElement nextPage = driver.findElement(By.xpath("//BUTTON[contains(@class,'next-btn next-btn-normal next-btn-large next-pagination-item next')]"));
-            
+
             if (nextPage != null && nextPage.isEnabled()) {
                 ((JavascriptExecutor) driver).executeScript("arguments[0].click();", nextPage);
                 antiDetectionService.randomWait(3000, 5000);
                 return true;
             }
-            
+
             return false;
         } catch (Exception e) {
             System.err.println("翻页失败: " + e.getMessage());
