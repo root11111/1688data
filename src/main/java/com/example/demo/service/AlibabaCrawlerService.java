@@ -29,73 +29,6 @@ public class AlibabaCrawlerService {
     @Autowired
     private ExcelExportService excelExportService;
 
-/*    public static void main(String[] args) {
-        WebDriver driver = new ChromeDriver();
-        driver.get("https://shop15568c7l37150.1688.com/page/contactinfo.htm?spm=0.0.wp_pc_common_topnav_38229151.0");
-
-        // 提取公司名称
-        WebElement companyName = driver.findElement(By.xpath("//div[contains(text(), \"东莞卓力通新能源有限公司\")]"));
-        System.out.println("公司名称: " + companyName.getText());
-
-        // 提取电话
-        WebElement phone = driver.findElement(By.xpath("//div[contains(text(), \"电话：\")]/following-sibling::div[1]"));
-        System.out.println("电话: " + phone.getText());
-
-        // 提取手机
-        WebElement mobile = driver.findElement(By.xpath("//div[contains(text(), \"手机：\")]/following-sibling::div[1]"));
-        System.out.println("手机: " + mobile.getText());
-
-        // 提取地址
-        WebElement address = driver.findElement(By.xpath("//div[contains(text(), \"地址：\")]/following-sibling::div[1]"));
-        System.out.println("地址: " + address.getText());
-
-        // 提取联系人
-        WebElement contactPerson = driver.findElement(By.xpath("//div[contains(@style, \"margin-left: 112px\") and contains(text(), \"程华女士\")]"));
-        System.out.println("联系人: " + contactPerson.getText());
-
-        driver.quit();
-    }*/
-
-    private void extractLianxiren(WebElement item, String sourceUrl, WebDriver driver) {
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
-        JavascriptExecutor js = (JavascriptExecutor) driver;
-
-        try {
-            // 0. 确保页面完全加载
-            wait.until(webDriver -> js.executeScript("return document.readyState").equals("complete"));
-
-
-            // 1. 提取 module-wrapper div 的所有内容
-            WebElement moduleWrapper = wait.until(ExpectedConditions.presenceOfElementLocated(
-                    By.xpath("//div[contains(@class, 'module-wrapper')]")));
-
-            String moduleContent = moduleWrapper.getText();
-            System.out.println("✅ module-wrapper 内容:\n" + moduleContent);
-
-            // 2. 从 module-wrapper 中解析出具体的联系方式
-            Map<String, String> contacts = parseContactInfoFromModule(moduleContent);
-            System.out.println("\n📞 联系方式:");
-            contacts.forEach((k, v) -> System.out.println(k + ": " + v));
-
-
-            // 1. 公司名称提取（多级备用方案）
-            String companyName = extractCompanyName(driver, wait);
-            System.out.println("✅ 公司名称: " + companyName);
-
- /*           // 2. 联系方式提取（自适应不同页面结构）
-            Map<String, String> contacts = extractContactInfo(driver, wait);
-            System.out.println("\n📞 联系方式:");
-            contacts.forEach((k, v) -> System.out.println(k + ": " + v));*/
-
-
-        } catch (Exception e) {
-            System.err.println("❌ 发生错误: " + e.getMessage());
-            // 终极备用方案：直接获取可见文本
-            System.out.println("\n🆘 备用方案获取的信息:");
-            System.out.println(driver.findElement(By.tagName("body")).getText());
-        }
-    }
-
 
     // 从 module-wrapper 文本中解析联系方式
     private Map<String, String> parseContactInfoFromModule(String moduleText) {
@@ -372,21 +305,21 @@ public class AlibabaCrawlerService {
                                     for (String windowHandle : driver.getWindowHandles()) {
                                         if (!windowHandle.equals(currentWindow)) {
                                             driver.switchTo().window(windowHandle);
-                                            
+
                                             // 等待新页面加载
                                             antiDetectionService.randomWait(2000, 3000);
-                                            
+
                                             String newPageUrl = driver.getCurrentUrl();
                                             String newPageTitle = driver.getTitle();
-                                            
+
                                             System.out.println("🔍 检查新页面 - URL: " + newPageUrl);
                                             System.out.println("🔍 检查新页面 - Title: " + newPageTitle);
-                                            
+
                                             // 验证是否是联系方式页面（包含contactinfo关键词或包含联系方式相关内容）
-                                            if (newPageUrl.contains("contactinfo") || 
-                                                newPageUrl.contains("contact") ||
-                                                newPageTitle.contains("联系方式") ||
-                                                newPageTitle.contains("联系信息")) {
+                                            if (newPageUrl.contains("contactinfo") ||
+                                                    newPageUrl.contains("contact") ||
+                                                    newPageTitle.contains("联系方式") ||
+                                                    newPageTitle.contains("联系信息")) {
                                                 System.out.println("✅ 成功切换到联系方式页面");
                                                 foundContactPage = true;
                                                 break;
@@ -398,12 +331,12 @@ public class AlibabaCrawlerService {
                                             }
                                         }
                                     }
-                                    
+
                                     if (foundContactPage) {
                                         break;
                                     }
                                 }
-                                
+
                                 // 等待更长时间让新页面完全加载
                                 System.out.println("⏳ 等待联系方式页面加载... (重试 " + (retry + 1) + "/" + maxRetries + ")");
                                 antiDetectionService.randomWait(2000, 4000);
@@ -414,7 +347,8 @@ public class AlibabaCrawlerService {
                                 if (captchaHandler.checkForCaptcha(driver)) {
                                     System.out.println("⚠️  联系方式页面检测到验证码！");
                                     if (!captchaHandler.handleCaptcha(driver)) {
-                                        captchaHandler.waitForManualCaptcha();
+                                        System.out.println("⚠️ 联系方式页面验证码处理失败，提取基本信息");
+                                        // 不跳过，继续提取基本信息
                                     }
                                 }
 
@@ -429,15 +363,16 @@ public class AlibabaCrawlerService {
                                 System.out.println("❌ 未能找到联系方式页面，尝试在当前页面提取");
                                 // 如果没有找到联系方式页面，尝试在当前页面提取
                                 antiDetectionService.randomWait(3000, 5000);
-                                
+
                                 // 再次检查当前页面是否出现验证码
                                 if (captchaHandler.checkForCaptcha(driver)) {
                                     System.out.println("⚠️  当前页面检测到验证码！");
                                     if (!captchaHandler.handleCaptcha(driver)) {
-                                        captchaHandler.waitForManualCaptcha();
+                                        System.out.println("⚠️ 当前页面验证码处理失败，提取基本信息");
+                                        // 不跳过，继续提取基本信息
                                     }
                                 }
-                                
+
                                 // 在当前页面提取联系方式数据
                                 extractContactInfo(driver, info);
                             }
@@ -462,7 +397,7 @@ public class AlibabaCrawlerService {
 
                                 // 重新获取窗口句柄列表
                                 allWindowHandles = driver.getWindowHandles();
-                                
+
                                 // 关闭除了主窗口之外的所有剩余标签页
                                 for (String windowHandle : allWindowHandles) {
                                     if (!windowHandle.equals(mainWindow)) {
@@ -522,10 +457,10 @@ public class AlibabaCrawlerService {
                         } else {
                             System.err.println("❌ 导出Excel失败");
                         }
-                        
+
                         // 增加实际处理计数
                         processedItemsOnPage++;
-                        
+
                         // 打印循环进度信息
                         System.out.println("🔄 完成第 " + (i + 1) + " 个商品，继续处理下一个商品...");
                         System.out.println("📊 已处理: " + processedItemsOnPage + "/" + totalItemsOnPage + " 个商品，累计数据: " + manufacturerInfos.size() + " 条");
