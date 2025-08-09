@@ -352,7 +352,7 @@ public class AlibabaCrawlerService {
 
             // 方法1：使用八爪鱼任务中的XPath
             try {
-                WebElement companyElement = driver.findElement(By.xpath("//div[contains(@style, 'font-size: 20px') and contains(@style, 'color: rgb(51, 51, 51)')]"));
+                WebElement companyElement = driver.findElement(By.xpath("//div[@class=\"module-wrapper\"]/div[1]/div[2]"));
                 companyName = (String) ((JavascriptExecutor) driver)
                         .executeScript("return arguments[0].textContent || arguments[0].innerText;", companyElement);
                 companyName = companyName.trim();
