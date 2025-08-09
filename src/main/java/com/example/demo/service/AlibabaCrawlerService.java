@@ -13,9 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 @Service
 public class AlibabaCrawlerService {
@@ -28,6 +26,109 @@ public class AlibabaCrawlerService {
 
     @Autowired
     private ExcelExportService excelExportService;
+
+/*    public static void main(String[] args) {
+        WebDriver driver = new ChromeDriver();
+        driver.get("https://shop15568c7l37150.1688.com/page/contactinfo.htm?spm=0.0.wp_pc_common_topnav_38229151.0");
+
+        // 提取公司名称
+        WebElement companyName = driver.findElement(By.xpath("//div[contains(text(), \"东莞卓力通新能源有限公司\")]"));
+        System.out.println("公司名称: " + companyName.getText());
+
+        // 提取电话
+        WebElement phone = driver.findElement(By.xpath("//div[contains(text(), \"电话：\")]/following-sibling::div[1]"));
+        System.out.println("电话: " + phone.getText());
+
+        // 提取手机
+        WebElement mobile = driver.findElement(By.xpath("//div[contains(text(), \"手机：\")]/following-sibling::div[1]"));
+        System.out.println("手机: " + mobile.getText());
+
+        // 提取地址
+        WebElement address = driver.findElement(By.xpath("//div[contains(text(), \"地址：\")]/following-sibling::div[1]"));
+        System.out.println("地址: " + address.getText());
+
+        // 提取联系人
+        WebElement contactPerson = driver.findElement(By.xpath("//div[contains(@style, \"margin-left: 112px\") and contains(text(), \"程华女士\")]"));
+        System.out.println("联系人: " + contactPerson.getText());
+
+        driver.quit();
+    }*/
+
+    private void extractLianxiren(WebElement item, String sourceUrl, WebDriver driver) {
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+
+        try {
+            // 1. 提取公司名称（两种备用方案）
+            String companyName = "";
+            try {
+                WebElement companyElement = wait.until(ExpectedConditions.presenceOfElementLocated(
+                        By.xpath("//div[contains(@class, 'rxc3yIkBWNqiPxVNHOSI')]"))); // 使用class名
+                companyName = companyElement.getText();
+            } catch (Exception e) {
+                companyName = driver.findElement(
+                        By.xpath("//span[@title]")).getAttribute("title"); // 备用方案获取title属性
+            }
+            System.out.println("公司名称: " + companyName);
+
+            // 2. 提取联系方式（使用更宽松的定位策略）
+            Map<String, String> contactInfo = new LinkedHashMap<>();
+            List<WebElement> contactItems = wait.until(ExpectedConditions.presenceOfAllElementsLocatedBy(
+                    By.xpath("//div[contains(text(), '：')]"))); // 查找包含冒号的所有div
+
+            for (WebElement contactItem : contactItems) {
+                String text = contactItem.getText();
+                if (text.contains("电话") || text.contains("手机") || text.contains("地址")) {
+                    String[] parts = text.split("：", 2);
+                    if (parts.length == 2) {
+                        contactInfo.put(parts[0], parts[1].trim());
+                    }
+                }
+            }
+
+            System.out.println("电话: " + contactInfo.getOrDefault("电话", "未找到"));
+            System.out.println("手机: " + contactInfo.getOrDefault("手机", "未找到"));
+            System.out.println("地址: " + contactInfo.getOrDefault("地址", "未找到"));
+
+            // 3. 提取联系人（使用相对定位）
+            String contactPerson = "";
+            try {
+                contactPerson = driver.findElement(
+                                By.xpath("//div[contains(text(), '有任何问题欢迎')]/preceding-sibling::div[1]"))
+                        .getText();
+            } catch (Exception e) {
+                contactPerson = "未找到联系人";
+            }
+            System.out.println("联系人: " + contactPerson);
+
+            // 4. 商品标题提取（使用JavaScript作为备用）
+            try {
+                List<WebElement> products = wait.until(ExpectedConditions.presenceOfAllElementsLocatedBy(
+                        By.xpath("//div[contains(@class, 'offer-list-row')]//h4")));
+
+                System.out.println("\n商品列表:");
+                for (int i = 0; i < Math.min(products.size(), 5); i++) { // 最多显示5个商品
+                    System.out.println((i+1) + ". " + products.get(i).getText());
+                }
+            } catch (Exception e) {
+                System.out.println("尝试通过JavaScript获取商品信息...");
+                String productsJs = "return Array.from(document.querySelectorAll('.offer-title')).map(el => el.innerText)";
+                List<String> productTitles = (List<String>) ((JavascriptExecutor)driver).executeScript(productsJs);
+                productTitles.forEach(title -> System.out.println("商品: " + title));
+            }
+
+        } catch (Exception e) {
+            System.err.println("❌ 发生错误: " + e.getMessage());
+            e.printStackTrace();
+
+            // 终极备用方案：直接获取整个联系信息区块
+            try {
+                WebElement contactBlock = driver.findElement(By.xpath("//div[contains(text(), '联系方式')]/ancestor::div[1]"));
+                System.out.println("备用方案获取的联系信息:\n" + contactBlock.getText());
+            } catch (Exception ex) {
+                System.err.println("无法获取任何联系信息");
+            }
+        }
+    }
 
     public List<ManufacturerInfo> crawlManufacturerInfo(String url, int maxPages) {
         // 设置WebDriver
@@ -167,6 +268,7 @@ public class AlibabaCrawlerService {
                                 }
                             }
 
+                            extractLianxiren(item, url, driver);
                             // 7. 提取联系方式数据
                             extractContactInfo(driver, info);
 
