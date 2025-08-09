@@ -39,8 +39,8 @@ public class Demo1Application {
             // 测试URL
             String testUrl = "https://www.1688.com/zw/page.html?spm=a312h.2018_new_sem.dh_001.2.2f6f5576Ce3nO9&hpageId=old-sem-pc-list&cosite=baidujj_pz&keywords=%E5%90%88%E8%82%A5%E9%94%82%E7%94%B5%E6%B1%A0%E7%BB%84&trackid=885662561117990122602&location=re&ptid=01770000000464ce963d082f6fbe7ca7&exp=pcSemFumian%3AC%3BpcDacuIconExp%3AA%3BpcCpxGuessExp%3AB%3BpcCpxCpsExp%3AB%3Bqztf%3AE%3Bwysiwyg%3AB%3BhotBangdanExp%3AA%3BpcSemWwClick%3AA%3BpcSemDownloadPlugin%3AA%3Basst%3AF&sortType=&descendOrder=&province=&city=&priceStart=&priceEnd=&dis=&provinceValue=%E6%89%80%E5%9C%A8%E5%9C%B0%E5%8C%BA&p_rs=true";
             
-            // 爬取1页数据
-            List<ManufacturerInfo> data = crawlerService.crawlManufacturerInfo(testUrl, 1);
+            // 爬取5页数据（可以根据需要调整）
+            List<ManufacturerInfo> data = crawlerService.crawlManufacturerInfo(testUrl, 5);
             
             System.out.println("爬取完成，获取到 " + data.size() + " 条数据");
             

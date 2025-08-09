@@ -258,13 +258,28 @@ public class AlibabaCrawlerService {
 
                 // 4. 获取商品列表 - 使用八爪鱼的方式：不固定元素列表，动态获取
                 List<WebElement> items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
-                System.out.println("找到 " + items.size() + " 个商品");
+                int totalItemsOnPage = items.size(); // 保存原始商品数量
+                int processedItemsOnPage = 0; // 实际处理的商品数量
+                System.out.println("找到 " + totalItemsOnPage + " 个商品");
 
                 for (int i = 0; i < items.size(); i++) {
                     try {
+                        // 验证WebDriver会话是否仍然有效
+                        try {
+                            driver.getTitle(); // 简单的会话验证
+                        } catch (Exception sessionEx) {
+                            System.err.println("❌ WebDriver会话已失效: " + sessionEx.getMessage());
+                            System.err.println("❌ 爬取终止，请重启程序");
+                            return manufacturerInfos; // 直接返回已获取的数据
+                        }
+
                         // 重新获取元素列表，防止StaleElementReferenceException
                         items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
-                        if (i >= items.size()) break;
+                        System.out.println("🔍 重新获取商品列表，当前找到 " + items.size() + " 个商品，正在处理第 " + (i + 1) + " 个");
+                        if (i >= items.size()) {
+                            System.out.println("⚠️ 商品索引超出范围，结束当前页面处理");
+                            break;
+                        }
 
                         WebElement item = items.get(i);
 
@@ -431,29 +446,63 @@ public class AlibabaCrawlerService {
                             System.err.println("提取详细信息失败: " + e.getMessage());
                         }
 
-                        // 关闭所有剩余的新打开的标签页，切换回主窗口
-                        System.out.println("🔄 清理剩余的新标签页...");
+                        // 安全地清理剩余的新标签页，确保主窗口不被关闭
+                        System.out.println("🔄 安全清理剩余的新标签页...");
 
-                        // 获取当前所有窗口句柄
-                        java.util.Set<String> allWindowHandles = driver.getWindowHandles();
-                        System.out.println("📊 当前窗口数量: " + allWindowHandles.size());
+                        try {
+                            // 获取当前所有窗口句柄
+                            java.util.Set<String> allWindowHandles = driver.getWindowHandles();
+                            System.out.println("📊 当前窗口数量: " + allWindowHandles.size());
 
-                        // 关闭除了主窗口之外的所有剩余标签页
-                        for (String windowHandle : allWindowHandles) {
-                            if (!windowHandle.equals(mainWindow)) {
-                                try {
-                                    driver.switchTo().window(windowHandle);
-                                    System.out.println("🔄 关闭剩余标签页: " + driver.getTitle());
-                                    driver.close();
-                                } catch (Exception e) {
-                                    System.err.println("❌ 关闭剩余标签页失败: " + e.getMessage());
+                            // 如果窗口数量大于1，说明还有其他窗口需要关闭
+                            if (allWindowHandles.size() > 1) {
+                                // 先确保当前在主窗口
+                                driver.switchTo().window(mainWindow);
+                                System.out.println("🏠 已切换到主窗口");
+
+                                // 重新获取窗口句柄列表
+                                allWindowHandles = driver.getWindowHandles();
+                                
+                                // 关闭除了主窗口之外的所有剩余标签页
+                                for (String windowHandle : allWindowHandles) {
+                                    if (!windowHandle.equals(mainWindow)) {
+                                        try {
+                                            driver.switchTo().window(windowHandle);
+                                            String pageTitle = "";
+                                            try {
+                                                pageTitle = driver.getTitle();
+                                            } catch (Exception titleEx) {
+                                                pageTitle = "无法获取标题";
+                                            }
+                                            System.out.println("🔄 关闭剩余标签页: " + pageTitle);
+                                            driver.close();
+                                        } catch (Exception e) {
+                                            System.err.println("❌ 关闭剩余标签页失败: " + e.getMessage());
+                                        }
+                                    }
                                 }
-                            }
-                        }
 
-                        // 确保切换回主窗口
-                        driver.switchTo().window(mainWindow);
-                        System.out.println("✅ 已确保切换回主窗口: " + driver.getTitle());
+                                // 最后确保切换回主窗口
+                                driver.switchTo().window(mainWindow);
+                                System.out.println("✅ 已确保切换回主窗口");
+                            } else {
+                                System.out.println("✅ 当前只有主窗口，无需清理");
+                            }
+
+                            // 验证主窗口是否仍然有效
+                            try {
+                                String mainTitle = driver.getTitle();
+                                System.out.println("✅ 主窗口验证成功: " + mainTitle);
+                            } catch (Exception e) {
+                                System.err.println("❌ 主窗口验证失败: " + e.getMessage());
+                                // 不要重新抛出异常，继续处理下一个商品
+                                // throw e; // 注释掉这行，防止循环中断
+                            }
+
+                        } catch (Exception e) {
+                            System.err.println("❌ 窗口清理过程出错: " + e.getMessage());
+                            // 不要重新抛出异常，继续处理下一个商品
+                        }
 
                         // 即使没有成功进入详情页，也保存基本信息
                         manufacturerInfos.add(info);
@@ -473,19 +522,33 @@ public class AlibabaCrawlerService {
                         } else {
                             System.err.println("❌ 导出Excel失败");
                         }
+                        
+                        // 增加实际处理计数
+                        processedItemsOnPage++;
+                        
+                        // 打印循环进度信息
+                        System.out.println("🔄 完成第 " + (i + 1) + " 个商品，继续处理下一个商品...");
+                        System.out.println("📊 已处理: " + processedItemsOnPage + "/" + totalItemsOnPage + " 个商品，累计数据: " + manufacturerInfos.size() + " 条");
 
                     } catch (Exception e) {
-                        System.err.println("处理第 " + i + " 个商品时出错: " + e.getMessage());
+                        System.err.println("处理第 " + (i + 1) + " 个商品时出错: " + e.getMessage());
+                        e.printStackTrace(); // 打印完整的异常堆栈，便于调试
+                        System.out.println("⚠️ 跳过第 " + (i + 1) + " 个商品，继续处理下一个...");
                         continue;
                     }
                 }
 
+                System.out.println("📝 第 " + page + " 页处理完成，共找到 " + totalItemsOnPage + " 个商品，成功处理 " + processedItemsOnPage + " 个");
+
                 // 尝试翻页 - 使用您提供的XPath
                 if (page < maxPages) {
+                    System.out.println("🔄 准备翻到第 " + (page + 1) + " 页...");
                     if (!tryNextPage(driver, wait)) {
                         System.out.println("没有更多页面了");
                         break;
                     }
+                } else {
+                    System.out.println("✅ 已达到最大页数限制: " + maxPages);
                 }
             }
         } catch (Exception e) {
