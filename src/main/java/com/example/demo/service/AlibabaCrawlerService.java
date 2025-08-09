@@ -783,7 +783,7 @@ public class AlibabaCrawlerService {
             System.err.println("❌ 提取传真失败: " + e.getMessage());
         }
 
-     /*   try {
+        try {
             // 主营产品 - 从商品标题推断
             if (info.getProductTitle() != null && !info.getProductTitle().equals("未获取到商品标题")) {
                 info.setMainProducts(info.getProductTitle());
@@ -818,7 +818,7 @@ public class AlibabaCrawlerService {
             info.setContactInfo("未获取到联系方式");
         }
 
-        System.out.println("📋 综合联系方式: " + info.getContactInfo());*/
+        System.out.println("📋 综合联系方式: " + info.getContactInfo());
     }
 
     private void scrollPage(WebDriver driver) {
