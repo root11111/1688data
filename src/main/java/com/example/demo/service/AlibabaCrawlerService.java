@@ -615,39 +615,6 @@ public class AlibabaCrawlerService {
                 System.out.println("方法1失败，尝试方法2...");
             }
 
-            // 方法2：查找包含公司关键词的div
-            if (companyName.isEmpty()) {
-                try {
-                    List<WebElement> allDivs = driver.findElements(By.xpath("//div"));
-                    for (WebElement div : allDivs) {
-                        try {
-                            String text = div.getText().trim();
-                            if ((text.contains("科技有限公司") || text.contains("有限公司") || text.contains("公司"))
-                                    && !text.equals("联系方式") && text.length() > 5 && text.length() < 50) {
-                                companyName = text;
-                                break;
-                            }
-                        } catch (Exception ex) {
-                            // 忽略单个元素的错误
-                        }
-                    }
-                } catch (Exception e) {
-                    System.out.println("方法2失败，尝试方法3...");
-                }
-            }
-
-            // 方法3：查找页面标题中的公司名
-            if (companyName.isEmpty()) {
-                try {
-                    String pageTitle = driver.getTitle();
-                    if (pageTitle.contains("亿纬锂能")) {
-                        companyName = "惠州亿纬锂能股份有限公司";
-                    }
-                } catch (Exception e) {
-                    System.out.println("方法3失败");
-                }
-            }
-
             if (!companyName.isEmpty()) {
                 info.setCompanyName(companyName);
                 System.out.println("🏢 提取到公司名称: " + companyName);
@@ -675,43 +642,6 @@ public class AlibabaCrawlerService {
                 System.out.println("【联系人】方法1找到：" + contactName);
             } catch (Exception e) {
                 System.out.println("【联系人】方法1失败：" + e.getMessage());
-            }
-
-            // 方法2：查找包含先生/女士的文本（不限div）
-            if (contactName.isEmpty()) {
-                System.out.println("【联系人】方法2：遍历所有含先生/女士的节点...");
-                try {
-                    List<WebElement> elements = driver.findElements(By.xpath("//*[contains(text(), '先生') or contains(text(), '女士')]"));
-                    for (WebElement el : elements) {
-                        String text = el.getText().trim();
-                        System.out.println("【联系人】方法2遍历到节点文本：" + text);
-                        if (text.matches("[\\u4e00-\\u9fa5]{2,5}.*(先生|女士)")) {
-                            contactName = text;
-                            System.out.println("【联系人】方法2匹配到联系人：" + contactName);
-                            break;
-                        }
-                    }
-                } catch (Exception e) {
-                    System.out.println("【联系人】方法2失败：" + e.getMessage());
-                }
-            }
-
-            // 方法3：遍历所有元素，正则兜底
-            if (contactName.isEmpty()) {
-                System.out.println("【联系人】方法3：正则兜底，页面源码长度：" + driver.getPageSource().length());
-                try {
-                    String pageSource = driver.getPageSource();
-                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("([\\u4e00-\\u9fa5]{2,5})[\\s　]*(先生|女士)");
-                    java.util.regex.Matcher matcher = pattern.matcher(pageSource);
-                    if (matcher.find()) {
-                        contactName = matcher.group();
-                        System.out.println("【联系人】正则匹配到：" + contactName);
-                    } else {
-                        System.out.println("【联系人】正则未匹配到联系人");
-                    }
-                } catch (Exception e) {
-                    System.out.println("【联系人】方法3失败：" + e.getMessage());
-                }
             }
 
             // 最终结果
@@ -742,43 +672,6 @@ public class AlibabaCrawlerService {
                 System.out.println("电话方法1失败，尝试方法2...");
             }
 
-            // 方法2：查找包含电话关键词的文本
-            if (phone.isEmpty()) {
-                try {
-                    List<WebElement> phoneElements = driver.findElements(By.xpath("//*[contains(text(), '电话') or contains(text(), 'Phone')]"));
-                    for (WebElement element : phoneElements) {
-                        try {
-                            String text = element.getText().trim();
-                            if (text.matches(".*\\d{7,}.*")) {
-                                phone = text.replaceAll("[^0-9]", "");
-                                if (phone.length() >= 7) {
-                                    break;
-                                }
-                            }
-                        } catch (Exception ex) {
-                            // 忽略单个元素的错误
-                        }
-                    }
-                } catch (Exception e) {
-                    System.out.println("电话方法2失败，尝试方法3...");
-                }
-            }
-
-            // 方法3：正则兜底方案
-            if (phone.isEmpty()) {
-                try {
-                    String pageSource = driver.getPageSource();
-                    java.util.regex.Pattern phonePattern = java.util.regex.Pattern.compile("\\b1[3-9]\\d{9}\\b");
-                    java.util.regex.Matcher matcher = phonePattern.matcher(pageSource);
-                    if (matcher.find()) {
-                        phone = matcher.group();
-                        System.out.println("📞 正则兜底提取到电话: " + phone);
-                    }
-                } catch (Exception e) {
-                    System.err.println("❌ 正则兜底提取电话异常: " + e.getMessage());
-                }
-            }
-
             if (!phone.isEmpty() && !phone.equals("暂无")) {
                 info.setPhoneNumber(phone);
                 System.out.println("📞 提取到电话: " + phone);
@@ -806,27 +699,6 @@ public class AlibabaCrawlerService {
                 System.out.println("手机方法1失败，尝试方法2...");
             }
 
-            // 方法2：查找包含手机关键词的文本
-            if (mobile.isEmpty()) {
-                try {
-                    List<WebElement> mobileElements = driver.findElements(By.xpath("//*[contains(text(), '手机') or contains(text(), 'Mobile')]"));
-                    for (WebElement element : mobileElements) {
-                        try {
-                            String text = element.getText().trim();
-                            if (text.matches(".*\\d{11}.*")) {
-                                mobile = text.replaceAll("[^0-9]", "");
-                                if (mobile.length() == 11) {
-                                    break;
-                                }
-                            }
-                        } catch (Exception ex) {
-                            // 忽略单个元素的错误
-                        }
-                    }
-                } catch (Exception e) {
-                    System.out.println("手机方法2失败");
-                }
-            }
 
             if (!mobile.isEmpty() && !mobile.equals("暂无")) {
                 // 如果手机号不为空，优先使用手机号
@@ -855,25 +727,6 @@ public class AlibabaCrawlerService {
                 System.out.println("地址方法1失败，尝试方法2...");
             }
 
-            // 方法2：查找包含地址关键词的文本
-            if (address.isEmpty()) {
-                try {
-                    List<WebElement> addressElements = driver.findElements(By.xpath("//*[contains(text(), '地址') or contains(text(), 'Address')]"));
-                    for (WebElement element : addressElements) {
-                        try {
-                            String text = element.getText().trim();
-                            if (text.contains("省") || text.contains("市") || text.contains("区") || text.contains("县")) {
-                                address = text;
-                                break;
-                            }
-                        } catch (Exception ex) {
-                            // 忽略单个元素的错误
-                        }
-                    }
-                } catch (Exception e) {
-                    System.out.println("地址方法2失败");
-                }
-            }
 
             if (!address.isEmpty()) {
                 info.setAddress(address);
@@ -930,7 +783,7 @@ public class AlibabaCrawlerService {
             System.err.println("❌ 提取传真失败: " + e.getMessage());
         }
 
-        try {
+     /*   try {
             // 主营产品 - 从商品标题推断
             if (info.getProductTitle() != null && !info.getProductTitle().equals("未获取到商品标题")) {
                 info.setMainProducts(info.getProductTitle());
@@ -965,7 +818,7 @@ public class AlibabaCrawlerService {
             info.setContactInfo("未获取到联系方式");
         }
 
-        System.out.println("📋 综合联系方式: " + info.getContactInfo());
+        System.out.println("📋 综合联系方式: " + info.getContactInfo());*/
     }
 
     private void scrollPage(WebDriver driver) {
