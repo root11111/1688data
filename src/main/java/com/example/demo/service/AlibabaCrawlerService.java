@@ -344,48 +344,116 @@ public class AlibabaCrawlerService {
                                     By.xpath("//a[contains(text(), '联系方式')]")));
 
                             // 6. 点击联系方式按钮
+                            String currentWindow = driver.getWindowHandle();
                             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", contactButton);
                             antiDetectionService.randomWait(2000, 4000);
 
-                            // 再次检查点击联系方式后是否出现验证码
-                            if (captchaHandler.checkForCaptcha(driver)) {
-                                System.out.println("⚠️  点击联系方式后检测到验证码！");
-                                if (!captchaHandler.handleCaptcha(driver)) {
-                                    captchaHandler.waitForManualCaptcha();
+                            // 检查是否打开了新的联系方式页面
+                            boolean foundContactPage = false;
+                            int maxRetries = 10; // 最多重试10次
+                            for (int retry = 0; retry < maxRetries; retry++) {
+                                if (driver.getWindowHandles().size() > 1) {
+                                    // 切换到联系方式新页面
+                                    for (String windowHandle : driver.getWindowHandles()) {
+                                        if (!windowHandle.equals(currentWindow)) {
+                                            driver.switchTo().window(windowHandle);
+                                            
+                                            // 等待新页面加载
+                                            antiDetectionService.randomWait(2000, 3000);
+                                            
+                                            String newPageUrl = driver.getCurrentUrl();
+                                            String newPageTitle = driver.getTitle();
+                                            
+                                            System.out.println("🔍 检查新页面 - URL: " + newPageUrl);
+                                            System.out.println("🔍 检查新页面 - Title: " + newPageTitle);
+                                            
+                                            // 验证是否是联系方式页面（包含contactinfo关键词或包含联系方式相关内容）
+                                            if (newPageUrl.contains("contactinfo") || 
+                                                newPageUrl.contains("contact") ||
+                                                newPageTitle.contains("联系方式") ||
+                                                newPageTitle.contains("联系信息")) {
+                                                System.out.println("✅ 成功切换到联系方式页面");
+                                                foundContactPage = true;
+                                                break;
+                                            } else {
+                                                System.out.println("⚠️  新页面不是联系方式页面，等待重试...");
+                                                // 如果不是联系方式页面，关闭这个窗口继续等待
+                                                driver.close();
+                                                driver.switchTo().window(currentWindow);
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (foundContactPage) {
+                                        break;
+                                    }
                                 }
+                                
+                                // 等待更长时间让新页面完全加载
+                                System.out.println("⏳ 等待联系方式页面加载... (重试 " + (retry + 1) + "/" + maxRetries + ")");
+                                antiDetectionService.randomWait(2000, 4000);
                             }
 
-                         //   extractLianxiren(item, url, driver);
-                            // 7. 提取联系方式数据
-                            extractContactInfo(driver, info);
+                            if (foundContactPage) {
+                                // 再次检查联系方式页面是否出现验证码
+                                if (captchaHandler.checkForCaptcha(driver)) {
+                                    System.out.println("⚠️  联系方式页面检测到验证码！");
+                                    if (!captchaHandler.handleCaptcha(driver)) {
+                                        captchaHandler.waitForManualCaptcha();
+                                    }
+                                }
+
+                                // 7. 在联系方式页面提取数据
+                                extractContactInfo(driver, info);
+
+                                // 提取完成后关闭联系方式页面，切换回详情页
+                                driver.close();
+                                driver.switchTo().window(currentWindow);
+                                System.out.println("🔄 已关闭联系方式页面，切换回详情页");
+                            } else {
+                                System.out.println("❌ 未能找到联系方式页面，尝试在当前页面提取");
+                                // 如果没有找到联系方式页面，尝试在当前页面提取
+                                antiDetectionService.randomWait(3000, 5000);
+                                
+                                // 再次检查当前页面是否出现验证码
+                                if (captchaHandler.checkForCaptcha(driver)) {
+                                    System.out.println("⚠️  当前页面检测到验证码！");
+                                    if (!captchaHandler.handleCaptcha(driver)) {
+                                        captchaHandler.waitForManualCaptcha();
+                                    }
+                                }
+                                
+                                // 在当前页面提取联系方式数据
+                                extractContactInfo(driver, info);
+                            }
 
                         } catch (Exception e) {
                             System.err.println("提取详细信息失败: " + e.getMessage());
                         }
 
-                        // 关闭所有新打开的标签页，切换回主窗口
-                        System.out.println("🔄 关闭所有新打开的标签页...");
+                        // 关闭所有剩余的新打开的标签页，切换回主窗口
+                        System.out.println("🔄 清理剩余的新标签页...");
 
                         // 获取当前所有窗口句柄
                         java.util.Set<String> allWindowHandles = driver.getWindowHandles();
                         System.out.println("📊 当前窗口数量: " + allWindowHandles.size());
 
-                        // 关闭除了主窗口之外的所有标签页
+                        // 关闭除了主窗口之外的所有剩余标签页
                         for (String windowHandle : allWindowHandles) {
                             if (!windowHandle.equals(mainWindow)) {
                                 try {
                                     driver.switchTo().window(windowHandle);
-                                    System.out.println("🔄 关闭标签页: " + driver.getTitle());
+                                    System.out.println("🔄 关闭剩余标签页: " + driver.getTitle());
                                     driver.close();
                                 } catch (Exception e) {
-                                    System.err.println("❌ 关闭标签页失败: " + e.getMessage());
+                                    System.err.println("❌ 关闭剩余标签页失败: " + e.getMessage());
                                 }
                             }
                         }
 
-                        // 切换回主窗口
+                        // 确保切换回主窗口
                         driver.switchTo().window(mainWindow);
-                        System.out.println("✅ 已切换回主窗口: " + driver.getTitle());
+                        System.out.println("✅ 已确保切换回主窗口: " + driver.getTitle());
 
                         // 即使没有成功进入详情页，也保存基本信息
                         manufacturerInfos.add(info);
