@@ -157,13 +157,12 @@ public class AlibabaCrawlerService {
                         // 等待新页面加载
                         antiDetectionService.randomWait(2000, 4000);
 
-                    /*    // 检查详情页是否有验证码
+                        // 再次检查联系方式页面是否出现验证码
                         if (captchaHandler.checkForCaptcha(driver)) {
-                            System.out.println("⚠️  详情页检测到验证码！");
-                            if (!captchaHandler.handleCaptcha(driver)) {
-                                captchaHandler.waitForManualCaptcha();
+                            if (captchaHandler.handleCaptcha(driver)) {
+                                break;
                             }
-                        }*/
+                        }
 
                         // 等待新页面加载并提取详细信息
                         try {
@@ -180,7 +179,7 @@ public class AlibabaCrawlerService {
                             // 切换到联系方式新页面
                             for (String windowHandle : driver.getWindowHandles()) {
                                 if (!windowHandle.equals(currentWindow)) {
-                                    driver.switchTo().window(windowHandle);
+                                   driver.switchTo().window(windowHandle);
 
                                     // 等待新页面加载
                                     antiDetectionService.randomWait(2000, 3000);
@@ -197,13 +196,12 @@ public class AlibabaCrawlerService {
 
 
                             // 再次检查联系方式页面是否出现验证码
-                       /*     if (captchaHandler.checkForCaptcha(driver)) {
-                                System.out.println("⚠️  联系方式页面检测到验证码！");
-                                if (!captchaHandler.handleCaptcha(driver)) {
-                                    System.out.println("⚠️ 联系方式页面验证码处理失败，提取基本信息");
-                                    // 不跳过，继续提取基本信息
+                            if (captchaHandler.checkForCaptcha(driver)) {
+                                if (captchaHandler.handleCaptcha(driver)) {
+                                    break;
                                 }
-                            }*/
+                            }
+
 
                             // 7. 在联系方式页面提取数据
                             extractContactInfo(driver, info);

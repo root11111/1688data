@@ -13,12 +13,12 @@ import java.util.List;
 public class SimpleCrawlerTest {
 
     public static void main(String[] args) {
-        System.out.println("=== 1688爬虫测试（增强版） ===");
-        System.out.println("🔄 启动Spring Boot应用...");
+
         
         // 启动Spring Boot应用
         ConfigurableApplicationContext context = SpringApplication.run(SimpleCrawlerTest.class, args);
-        
+        System.out.println("=== 1688爬虫测试（增强版） ===");
+        System.out.println("🔄 启动Spring Boot应用...");
         try {
             // 获取服务
             System.out.println("🔧 正在获取服务...");
@@ -33,8 +33,8 @@ public class SimpleCrawlerTest {
             
             System.out.println("📋 目标URL: " + testUrl);
             System.out.println("📄 爬取页数: 1页");
-            
-            // 爬取1页数据
+
+
             System.out.println("🔄 正在调用爬虫服务...");
             List<ManufacturerInfo> data = crawlerService.crawlManufacturerInfo(testUrl, 50);
             
