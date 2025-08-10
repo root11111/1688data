@@ -308,7 +308,7 @@ public class CaptchaHandlerService {
         System.out.println("   2. 如果出现图片验证码，请识别并点击");
         System.out.println("   3. 完成后按回车键继续...");
 
-        return false;
+        return true;
     }
 
     /**
