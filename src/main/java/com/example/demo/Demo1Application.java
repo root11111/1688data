@@ -3,6 +3,8 @@ package com.example.demo;
 import com.example.demo.entity.ManufacturerInfo;
 import com.example.demo.service.AlibabaCrawlerService;
 import com.example.demo.service.ExcelExportService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -10,13 +12,17 @@ import org.springframework.context.ConfigurableApplicationContext;
 import java.util.List;
 
 @SpringBootApplication
-public class Demo1Application {
+public class Demo1Application implements CommandLineRunner {
+
+    @Autowired
+    private AlibabaCrawlerService crawlerService;
 
     public static void main(String[] args) {
-        runCrawler();
+        SpringApplication.run(Demo1Application.class, args);
     }
 
-    private static void runCrawler() {
+    @Override
+    public void run(String... args) {
         System.out.println("=== 1688爬虫模式 ===");
 
         // 启动Spring Boot应用
@@ -35,7 +41,7 @@ public class Demo1Application {
             List<ManufacturerInfo> data = crawlerService.crawlManufacturerInfo(testUrl, 50);
 
             System.out.println("爬取完成，获取到 " + data.size() + " 条数据");
-
+            System.exit(0); // 明确退出
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

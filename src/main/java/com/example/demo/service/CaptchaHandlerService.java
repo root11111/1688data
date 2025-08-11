@@ -20,50 +20,50 @@ public class CaptchaHandlerService {
         try {
             // 扩展的验证码检测选择器
             List<String> captchaSelectors = List.of(
-                // 1688特定的验证码选择器
-                "//div[contains(@class, 'nc_wrapper')]",
-                "//div[contains(@class, 'nc_scale')]",
-                "//div[contains(@class, 'nc_scale_text')]",
-                "//div[contains(@class, 'nc_scale')]//span[contains(@class, 'nc_iconfont')]",
-                "//div[contains(@class, 'nc_scale')]//span[contains(@class, 'nc_scale_text')]",
-                "//div[contains(@class, 'nc_wrapper')]//div[contains(@class, 'nc_scale')]",
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_text')]",
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_slider')]",
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]",
+                    // 1688特定的验证码选择器
+                    "//div[contains(@class, 'nc_wrapper')]",
+                    "//div[contains(@class, 'nc_scale')]",
+                    "//div[contains(@class, 'nc_scale_text')]",
+                    "//div[contains(@class, 'nc_scale')]//span[contains(@class, 'nc_iconfont')]",
+                    "//div[contains(@class, 'nc_scale')]//span[contains(@class, 'nc_scale_text')]",
+                    "//div[contains(@class, 'nc_wrapper')]//div[contains(@class, 'nc_scale')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_text')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_slider')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]",
 
-                // 通用验证码选择器
-                "//div[contains(@class, 'captcha')]",
-                "//div[contains(@class, 'slider')]",
-                "//div[contains(@class, 'verify')]",
-                "//div[contains(@class, 'security')]",
-                "//iframe[contains(@src, 'captcha')]",
-                "//div[contains(text(), '验证')]",
-                "//div[contains(text(), '滑动')]",
-                "//div[contains(text(), '安全验证')]",
-                "//div[contains(text(), '请完成验证')]",
-                "//div[contains(text(), '拖动滑块')]",
-                "//div[contains(text(), '滑动验证')]",
+                    // 通用验证码选择器
+                    "//div[contains(@class, 'captcha')]",
+                    "//div[contains(@class, 'slider')]",
+                    "//div[contains(@class, 'verify')]",
+                    "//div[contains(@class, 'security')]",
+                    "//iframe[contains(@src, 'captcha')]",
+                    "//div[contains(text(), '验证')]",
+                    "//div[contains(text(), '滑动')]",
+                    "//div[contains(text(), '安全验证')]",
+                    "//div[contains(text(), '请完成验证')]",
+                    "//div[contains(text(), '拖动滑块')]",
+                    "//div[contains(text(), '滑动验证')]",
 
-                // 更多1688特定的选择器
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_slider')]",
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]",
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_text')]",
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_track')]",
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_bar')]",
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//span",
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//i",
+                    // 更多1688特定的选择器
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_slider')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_text')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_track')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_bar')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//span",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//i",
 
-                // 图片验证码选择器
-                "//div[contains(@class, 'captcha-img')]",
-                "//div[contains(@class, 'captcha-image')]",
-                "//img[contains(@src, 'captcha')]",
-                "//div[contains(@class, 'captcha')]//img",
+                    // 图片验证码选择器
+                    "//div[contains(@class, 'captcha-img')]",
+                    "//div[contains(@class, 'captcha-image')]",
+                    "//img[contains(@src, 'captcha')]",
+                    "//div[contains(@class, 'captcha')]//img",
 
-                // 安全验证选择器
-                "//div[contains(@class, 'security-check')]",
-                "//div[contains(@class, 'security-verify')]",
-                "//div[contains(@class, 'safety-check')]",
-                "//div[contains(@class, 'risk-check')]"
+                    // 安全验证选择器
+                    "//div[contains(@class, 'security-check')]",
+                    "//div[contains(@class, 'security-verify')]",
+                    "//div[contains(@class, 'safety-check')]",
+                    "//div[contains(@class, 'risk-check')]"
             );
 
             for (String selector : captchaSelectors) {
@@ -81,7 +81,7 @@ public class CaptchaHandlerService {
             // 检查页面标题是否包含验证相关文字
             String pageTitle = driver.getTitle();
             if (pageTitle.contains("验证") || pageTitle.contains("安全") || pageTitle.contains("captcha") ||
-                pageTitle.contains("验证码") || pageTitle.contains("滑动验证")) {
+                    pageTitle.contains("验证码") || pageTitle.contains("滑动验证")) {
                 System.out.println("🔍 页面标题包含验证相关文字: " + pageTitle);
                 return true;
             }
@@ -89,7 +89,7 @@ public class CaptchaHandlerService {
             // 检查页面源码中是否包含验证码相关文字
             String pageSource = driver.getPageSource();
             if (pageSource.contains("nc_scale") || pageSource.contains("滑动验证") ||
-                pageSource.contains("请完成验证") || pageSource.contains("拖动滑块")) {
+                    pageSource.contains("请完成验证") || pageSource.contains("拖动滑块")) {
                 System.out.println("🔍 页面源码包含验证码相关文字");
                 return true;
             }
@@ -112,7 +112,7 @@ public class CaptchaHandlerService {
             WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 
             // 先等待一下，让验证码完全加载
-          //  randomWait(2000, 4000);
+            randomWait(2000, 4000);
 
             // 尝试多种滑动验证码选择器
             WebElement slider = null;
@@ -120,13 +120,48 @@ public class CaptchaHandlerService {
 
             // 选择器列表，按优先级排序
             String[] sliderSelectors = {
-                    "//div[contains(@class, 'nc_iconfont btn_slide')]",
-                "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_iconfont btn_slide')]//div[contains(@class, 'nc_iconfont btn_slide')]//div[contains(@class, 'nc_iconfont btn_slide')]"
+                    "//div[contains(@class, 'nc_scale')]//span[contains(@class, 'nc_iconfont')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_slider')]",
+                    "//div[contains(@class, 'nc_scale')]//span[contains(@class, 'nc_scale_text')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//span",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//i",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//a",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//button",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//img",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//i[contains(@class, 'nc_iconfont')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//span[contains(@class, 'nc_iconfont')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//span[contains(@class, 'nc_scale_text')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_iconfont')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_text')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_slider')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_track')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_bar')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//span",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//i",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//div",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//a",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//button",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//img",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//i[contains(@class, 'nc_iconfont')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//span[contains(@class, 'nc_iconfont')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//span[contains(@class, 'nc_scale_text')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_iconfont')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_text')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_slider')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_track')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_btn')]//div[contains(@class, 'nc_scale_bar')]"
             };
 
             String[] trackSelectors = {
-                    "//div[contains(@class, 'nc-lang-cnt')]",
-                    "//div[contains(@class, 'nc-lang-cnt')]//div[contains(@class, 'nc-lang-cnt')]",
+                    "//div[contains(@class, 'nc_scale')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_track')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_bar')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_text')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_slider')]"
             };
 
             // 查找滑块 - 增加重试机制
@@ -172,7 +207,7 @@ public class CaptchaHandlerService {
 
                 // 尝试查找任何可点击的验证码相关元素
                 try {
-                    List<WebElement> clickableElements = driver.findElements(By.xpath("//*[@id=\"nc_1__scale_text\"]/span"));
+                    List<WebElement> clickableElements = driver.findElements(By.xpath("//div[contains(@class, 'nc_')]//*[self::div or self::span or self::button or self::a]"));
                     if (!clickableElements.isEmpty()) {
                         slider = clickableElements.get(0);
                         System.out.println("✅ 找到可点击的验证码元素");
@@ -273,7 +308,21 @@ public class CaptchaHandlerService {
         System.out.println("   2. 如果出现图片验证码，请识别并点击");
         System.out.println("   3. 完成后按回车键继续...");
 
-        return true;
+        return false;
+    }
+
+    /**
+     * 等待用户手动处理验证码
+     */
+    public void waitForManualCaptcha() {
+        try {
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            System.out.println("⏳ 请在浏览器中完成验证码验证，完成后按回车键继续...");
+            scanner.nextLine();
+            System.out.println("✅ 继续执行爬取...");
+        } catch (Exception e) {
+            System.err.println("❌ 等待用户输入时出错: " + e.getMessage());
+        }
     }
 
     /**
