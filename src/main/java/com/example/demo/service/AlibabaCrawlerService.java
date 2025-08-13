@@ -1,6 +1,8 @@
 package com.example.demo.service;
 
 import com.example.demo.entity.ManufacturerInfo;
+import com.example.demo.entity.CrawlProgress;
+import com.example.demo.service.CrawlProgressService;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -28,9 +30,30 @@ public class AlibabaCrawlerService {
 
     @Autowired
     private ExcelExportService excelExportService;
+    
+    @Autowired
+    private CrawlProgressService crawlProgressService;
 
 
+    /**
+     * 爬取供应商信息（支持断点续传）
+     */
     public List<ManufacturerInfo> crawlManufacturerInfo(String url, int maxPages) {
+        // 检查是否有未完成的爬取任务
+        Optional<CrawlProgress> existingProgress = crawlProgressService.findByUrl(url);
+        CrawlProgress progress;
+        
+        if (existingProgress.isPresent()) {
+            progress = existingProgress.get();
+            System.out.println("🔄 发现未完成的爬取任务，从断点继续...");
+            System.out.println("📊 当前进度: 第" + progress.getCurrentPage() + "页，第" + progress.getCurrentItemIndex() + "项");
+            System.out.println("📊 任务状态: " + progress.getStatus());
+        } else {
+            // 创建新的爬取进度记录
+            progress = crawlProgressService.createProgress(url, maxPages);
+            System.out.println("🆕 创建新的爬取任务，开始爬取...");
+        }
+        
         // 设置WebDriver
         WebDriverManager.chromedriver().setup();
 
@@ -62,9 +85,14 @@ public class AlibabaCrawlerService {
             // 随机等待，模拟人类行为
             antiDetectionService.randomWait(2000, 5000);
 
-            // 2. 循环翻页
-            for (int page = 1; page <= maxPages; page++) {
+            // 2. 循环翻页（支持断点续传）
+            for (int page = progress.getCurrentPage(); page <= maxPages; page++) {
                 System.out.println("正在处理第 " + page + " 页...");
+                
+                // 更新进度状态
+                progress.setStatus("IN_PROGRESS");
+                progress.setCurrentPage(page);
+                crawlProgressService.updateProgress(progress.getId(), page, progress.getCurrentItemIndex(), "IN_PROGRESS");
 
                 // 3. 滚动网页
                 scrollPage(driver);
@@ -75,14 +103,23 @@ public class AlibabaCrawlerService {
                 int processedItemsOnPage = 0; // 实际处理的商品数量
                 System.out.println("找到 " + totalItemsOnPage + " 个商品");
 
-                for (int i = 0; i < items.size(); i++) {
+                // 确定开始处理的商品索引（支持断点续传）
+                int startIndex = (page == progress.getCurrentPage()) ? progress.getCurrentItemIndex() : 0;
+                
+                for (int i = startIndex; i < items.size(); i++) {
                     try {
+                        // 更新当前处理的商品索引
+                        progress.setCurrentItemIndex(i);
+                        crawlProgressService.updateProgress(progress.getId(), page, i, "IN_PROGRESS");
+                        
                         // 验证WebDriver会话是否仍然有效
                         try {
                             driver.getTitle(); // 简单的会话验证
                         } catch (Exception sessionEx) {
                             System.err.println("❌ WebDriver会话已失效: " + sessionEx.getMessage());
                             System.err.println("❌ 爬取终止，请重启程序");
+                            // 保存当前进度
+                            crawlProgressService.updateProgress(progress.getId(), page, i, "FAILED");
                             return manufacturerInfos; // 直接返回已获取的数据
                         }
 
@@ -99,6 +136,21 @@ public class AlibabaCrawlerService {
                         // 提取商品基本信息
                         ManufacturerInfo info = extractBasicInfo(item, url, driver);
                         info.setPageNumber(page); // 设置页码
+                        
+                        // 立即写入Excel（逐条写入）
+                        try {
+                            boolean exportSuccess = excelExportService.appendToDefaultPath(info);
+                            if (exportSuccess) {
+                                System.out.println("✅ 商品数据已写入Excel: " + info.getCompanyName());
+                                // 添加到内存列表（用于返回）
+                                manufacturerInfos.add(info);
+                            } else {
+                                System.err.println("❌ 商品数据写入Excel失败: " + info.getCompanyName());
+                            }
+                        } catch (Exception exportEx) {
+                            System.err.println("❌ 写入Excel异常: " + exportEx.getMessage());
+                            exportEx.printStackTrace();
+                        }
 
                         // 5. 点击列表链接进入详情页
                         String mainWindow = driver.getWindowHandle();
@@ -324,12 +376,56 @@ public class AlibabaCrawlerService {
         } catch (Exception e) {
             System.err.println("爬取过程中出错: " + e.getMessage());
             e.printStackTrace();
+            // 保存异常状态
+            if (progress != null) {
+                crawlProgressService.updateStatus(progress.getId(), "FAILED");
+            }
         } finally {
+            // 更新爬取状态
+            if (progress != null) {
+                if (progress.getCurrentPage() >= maxPages) {
+                    crawlProgressService.updateStatus(progress.getId(), "COMPLETED");
+                    System.out.println("🎉 爬取任务完成！");
+                } else {
+                    crawlProgressService.updateStatus(progress.getId(), "IN_PROGRESS");
+                    System.out.println("⏸️ 爬取任务暂停，下次可从断点继续");
+                }
+            }
             driver.quit();
         }
 
         System.out.println("爬取完成，共获取 " + manufacturerInfos.size() + " 条供应商信息");
         return manufacturerInfos;
+    }
+    
+    /**
+     * 继续未完成的爬取任务
+     */
+    public List<ManufacturerInfo> resumeIncompleteTasks() {
+        List<ManufacturerInfo> allResults = new ArrayList<>();
+        List<CrawlProgress> incompleteTasks = crawlProgressService.findIncompleteTasks();
+        
+        if (incompleteTasks.isEmpty()) {
+            System.out.println("📋 没有未完成的爬取任务");
+            return allResults;
+        }
+        
+        System.out.println("🔄 发现 " + incompleteTasks.size() + " 个未完成的爬取任务，开始继续...");
+        
+        for (CrawlProgress task : incompleteTasks) {
+            if ("FAILED".equals(task.getStatus()) || "IN_PROGRESS".equals(task.getStatus())) {
+                System.out.println("🔄 继续任务: " + task.getUrl());
+                try {
+                    List<ManufacturerInfo> results = crawlManufacturerInfo(task.getUrl(), task.getTotalPages());
+                    allResults.addAll(results);
+                } catch (Exception e) {
+                    System.err.println("❌ 继续任务失败: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+        }
+        
+        return allResults;
     }
 
     private String getProductUrl(WebElement item) {
