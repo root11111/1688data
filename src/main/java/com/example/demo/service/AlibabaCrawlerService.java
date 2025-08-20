@@ -29,7 +29,7 @@ public class AlibabaCrawlerService {
     private AntiDetectionService antiDetectionService;
 
     @Autowired
-    private ExcelExportService excelExportService;
+    private ManufacturerInfoService manufacturerInfoService;
     
     @Autowired
     private CrawlProgressService crawlProgressService;
@@ -153,21 +153,21 @@ public class AlibabaCrawlerService {
                         ManufacturerInfo info = extractBasicInfo(item, url, driver);
                         info.setPageNumber(page); // 设置页码
                         
-                        // 立即写入Excel（逐条写入）
+                        // 立即保存到数据库
                         try {
-                            boolean exportSuccess = excelExportService.appendToDefaultPath(info);
-                            if (exportSuccess) {
-                                System.out.println("📄 第" + page + "页 - ✅ 商品数据已写入Excel: " + info.getCompanyName());
+                            ManufacturerInfo savedInfo = manufacturerInfoService.save(info);
+                            if (savedInfo != null && savedInfo.getId() != null) {
+                                System.out.println("📄 第" + page + "页 - ✅ 商品数据已保存到数据库: " + info.getCompanyName() + " (ID: " + savedInfo.getId() + ")");
                                 // 添加到内存列表（用于返回）
-                                manufacturerInfos.add(info);
+                                manufacturerInfos.add(savedInfo);
                                 // 增加成功处理计数
                                 processedItemsOnPage++;
                             } else {
-                                System.err.println("📄 第" + page + "页 - ❌ 商品数据写入Excel失败: " + info.getCompanyName());
+                                System.err.println("📄 第" + page + "页 - ❌ 商品数据保存到数据库失败: " + info.getCompanyName());
                             }
-                        } catch (Exception exportEx) {
-                            System.err.println("📄 第" + page + "页 - ❌ 写入Excel异常: " + exportEx.getMessage());
-                            exportEx.printStackTrace();
+                        } catch (Exception dbEx) {
+                            System.err.println("📄 第" + page + "页 - ❌ 保存到数据库异常: " + dbEx.getMessage());
+                            dbEx.printStackTrace();
                         }
 
                         // 5. 点击列表链接进入详情页
