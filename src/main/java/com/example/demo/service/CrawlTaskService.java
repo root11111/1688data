@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.entity.CrawlTask;
 import com.example.demo.repository.CrawlTaskRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class CrawlTaskService {
@@ -21,11 +24,20 @@ public class CrawlTaskService {
     private CrawlTaskRepository crawlTaskRepository;
     
     @Autowired
+    @Lazy
     private AlibabaCrawlerService crawlerService;
     
     // 存储运行中的任务
     private final ConcurrentHashMap<Long, Future<?>> runningTasks = new ConcurrentHashMap<>();
     private final ExecutorService taskExecutor = Executors.newCachedThreadPool();
+    
+    // 定时任务执行器，用于自动重启失败的任务
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    
+    public CrawlTaskService() {
+        // 启动定时任务，每10分钟检查一次失败的任务
+        startAutoRestartScheduler();
+    }
     
     /**
      * 创建新的爬取任务
@@ -72,6 +84,15 @@ public class CrawlTaskService {
         // 更新任务状态
         task.setStatus("RUNNING");
         task.setStartedTime(LocalDateTime.now());
+        
+        // 智能进度管理：如果是失败后重启的任务，保持原有进度（断点续传）
+        // 如果是新任务或已完成任务重启，则重置进度
+        if (task.getCurrentPage() == null || task.getCurrentPage() <= 0) {
+            task.setCurrentPage(1);  // 新任务从第1页开始
+            task.setCurrentItemIndex(0);  // 新任务从第0项开始
+        }
+        // 如果 currentPage > 0，说明有进度，保持原有进度（断点续传）
+        
         crawlTaskRepository.save(task);
         
         // 异步执行爬取任务
@@ -80,7 +101,7 @@ public class CrawlTaskService {
                 System.out.println("🚀 开始执行爬取任务: " + task.getTaskName());
                 
                 // 调用爬虫服务
-                crawlerService.crawlManufacturerInfo(task.getUrl(), task.getMaxPages());
+                crawlerService.crawlManufacturerInfo(task.getUrl(), task.getMaxPages(), task.getId());
                 
                 // 任务完成
                 task.setStatus("COMPLETED");
@@ -134,6 +155,20 @@ public class CrawlTaskService {
         crawlTaskRepository.save(task);
         
         return true;
+    }
+    
+    /**
+     * 更新任务进度
+     */
+    @Transactional
+    public void updateTaskProgress(Long taskId, Integer currentPage, Integer currentItemIndex) {
+        Optional<CrawlTask> optional = crawlTaskRepository.findById(taskId);
+        if (optional.isPresent()) {
+            CrawlTask task = optional.get();
+            task.setCurrentPage(currentPage);
+            task.setCurrentItemIndex(currentItemIndex);
+            crawlTaskRepository.save(task);
+        }
     }
     
     /**
@@ -211,5 +246,118 @@ public class CrawlTaskService {
      */
     public int getRunningTaskCount() {
         return runningTasks.size();
+    }
+    
+    /**
+     * 启动自动重启调度器
+     */
+    private void startAutoRestartScheduler() {
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                System.out.println("🔄 自动检查失败任务...");
+                autoRestartFailedTasks();
+            } catch (Exception e) {
+                System.err.println("❌ 自动重启任务检查失败: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }, 1, 10, TimeUnit.MINUTES); // 延迟1分钟启动，然后每10分钟执行一次
+        
+        System.out.println("✅ 自动重启调度器已启动，每10分钟检查一次失败任务");
+    }
+    
+    /**
+     * 自动重启失败的任务
+     */
+    private void autoRestartFailedTasks() {
+        try {
+            // 查找所有失败状态的任务
+            List<CrawlTask> failedTasks = crawlTaskRepository.findByStatus("FAILED");
+            
+            if (failedTasks.isEmpty()) {
+                System.out.println("✅ 没有发现失败的任务");
+                return;
+            }
+            
+            System.out.println("🔍 发现 " + failedTasks.size() + " 个失败的任务，准备自动重启...");
+            
+            for (CrawlTask failedTask : failedTasks) {
+                try {
+                    System.out.println("🔄 自动重启失败任务: " + failedTask.getTaskName() + " (ID: " + failedTask.getId() + ")");
+                    
+                    // 重置任务状态为待处理，但保持原有进度（断点续传）
+                    failedTask.setStatus("PENDING");
+                    // 不重置进度，保持断点续传
+                    // failedTask.setCurrentPage(0);
+                    // failedTask.setCurrentItemIndex(0);
+                    failedTask.setStartedTime(null);
+                    failedTask.setCompletedTime(null);
+                    
+                    // 保存更新后的任务
+                    crawlTaskRepository.save(failedTask);
+                    
+                    // 自动启动任务
+                    startTask(failedTask.getId());
+                    
+                    System.out.println("✅ 失败任务自动重启成功: " + failedTask.getTaskName());
+                    
+                    // 等待一小段时间再处理下一个任务，避免同时启动太多任务
+                    Thread.sleep(2000);
+                    
+                } catch (Exception e) {
+                    System.err.println("❌ 自动重启任务失败: " + failedTask.getTaskName() + " - " + e.getMessage());
+                    // 继续处理下一个任务，不中断整个流程
+                }
+            }
+            
+            System.out.println("✅ 自动重启失败任务检查完成");
+            
+        } catch (Exception e) {
+            System.err.println("❌ 自动重启失败任务过程中出错: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * 手动触发失败任务检查（用于测试或紧急情况）
+     */
+    public void triggerFailedTaskCheck() {
+        System.out.println("🚨 手动触发失败任务检查...");
+        autoRestartFailedTasks();
+    }
+    
+    /**
+     * 关闭服务时清理资源
+     */
+    public void shutdown() {
+        try {
+            System.out.println("🔄 正在关闭爬虫任务服务...");
+            
+            // 停止所有运行中的任务
+            for (Long taskId : runningTasks.keySet()) {
+                try {
+                    stopTask(taskId);
+                } catch (Exception e) {
+                    System.err.println("❌ 停止任务失败: " + taskId + " - " + e.getMessage());
+                }
+            }
+            
+            // 关闭线程池
+            taskExecutor.shutdown();
+            scheduler.shutdown();
+            
+            // 等待线程池完全关闭
+            if (!taskExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
+                taskExecutor.shutdownNow();
+            }
+            if (!scheduler.awaitTermination(30, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+            
+            System.out.println("✅ 爬虫任务服务已关闭");
+            
+        } catch (Exception e) {
+            System.err.println("❌ 关闭爬虫任务服务时出错: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }

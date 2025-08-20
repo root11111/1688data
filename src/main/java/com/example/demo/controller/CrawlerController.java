@@ -32,7 +32,7 @@ public class CrawlerController {
             System.out.println("目标URL: " + url);
             System.out.println("爬取页数: " + pages);
             
-            List<ManufacturerInfo> manufacturers = crawlerService.crawlManufacturerInfo(url, pages);
+            List<ManufacturerInfo> manufacturers = crawlerService.crawlManufacturerInfo(url, pages, null);
             
             response.put("success", true);
             response.put("message", "爬取成功，数据已保存到数据库");
@@ -66,7 +66,7 @@ public class CrawlerController {
             
             System.out.println("开始测试爬取1688供应商信息...");
             
-            List<ManufacturerInfo> manufacturers = crawlerService.crawlManufacturerInfo(testUrl, 1);
+            List<ManufacturerInfo> manufacturers = crawlerService.crawlManufacturerInfo(testUrl, 1, null);
             
 
             

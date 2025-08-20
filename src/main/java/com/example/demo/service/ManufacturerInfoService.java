@@ -84,4 +84,18 @@ public class ManufacturerInfoService {
     public void deleteById(Long id) {
         manufacturerInfoRepository.deleteById(id);
     }
+
+    /**
+     * 查询所有数据（不分页）
+     */
+    public List<ManufacturerInfo> findAll() {
+        return manufacturerInfoRepository.findAll();
+    }
+
+    /**
+     * 根据页码查询所有数据（不分页）
+     */
+    public List<ManufacturerInfo> findAllByPageNumber(Integer pageNumber) {
+        return manufacturerInfoRepository.findByPageNumber(pageNumber);
+    }
 }

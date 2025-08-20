@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS crawl_progress (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     url TEXT NOT NULL,
+    task_id BIGINT,
     current_page INT NOT NULL DEFAULT 1,
     current_item_index INT NOT NULL DEFAULT 0,
     total_pages INT NOT NULL DEFAULT 5,
@@ -10,6 +11,7 @@ CREATE TABLE IF NOT EXISTS crawl_progress (
     created_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_url (url(255)),
+    INDEX idx_task_id (task_id),
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

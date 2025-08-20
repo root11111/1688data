@@ -36,7 +36,7 @@ public class SimpleCrawlerTest {
 
 
             System.out.println("🔄 正在调用爬虫服务...");
-            List<ManufacturerInfo> data = crawlerService.crawlManufacturerInfo(testUrl, 50);
+            List<ManufacturerItem> data = crawlerService.crawlManufacturerInfo(testUrl, 50, null);
             
             System.out.println("✅ 爬取完成，获取到 " + data.size() + " 条数据");
             System.out.println("📊 数据详情检查:");

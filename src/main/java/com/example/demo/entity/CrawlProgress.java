@@ -14,6 +14,9 @@ public class CrawlProgress {
     @Column(name = "url", nullable = false, length = 1000)
     private String url;
     
+    @Column(name = "task_id")
+    private Long taskId;
+    
     @Column(name = "current_page", nullable = false)
     private Integer currentPage;
     
@@ -65,6 +68,14 @@ public class CrawlProgress {
     
     public void setUrl(String url) {
         this.url = url;
+    }
+    
+    public Long getTaskId() {
+        return taskId;
+    }
+    
+    public void setTaskId(Long taskId) {
+        this.taskId = taskId;
     }
     
     public Integer getCurrentPage() {

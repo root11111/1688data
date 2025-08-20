@@ -55,8 +55,7 @@ public class ExcelExportService {
             // 创建标题行
             Row headerRow = sheet.createRow(0);
             String[] headers = {
-                    "公司名称", "联系人", "联系电话", "地址", "主营产品",
-                    "产品标题", "价格", "爬取时间", "来源URL", "页码"
+                    "ID", "公司名称", "产品标题", "联系人", "座机", "手机", "地址", "传真", "页码", "爬取时间", "来源URL"
             };
 
             for (int i = 0; i < headers.length; i++) {
@@ -70,17 +69,18 @@ public class ExcelExportService {
                 ManufacturerInfo info = manufacturers.get(i);
                 Row dataRow = sheet.createRow(i + 1);
 
-                dataRow.createCell(0).setCellValue(info.getCompanyName() != null ? info.getCompanyName() : "");
-                dataRow.createCell(1).setCellValue(info.getContactPerson() != null ? info.getContactPerson() : "");
-                dataRow.createCell(2).setCellValue(info.getPhoneNumber() != null ? info.getPhoneNumber() : "");
-                dataRow.createCell(3).setCellValue(info.getAddress() != null ? info.getAddress() : "");
-                dataRow.createCell(4).setCellValue(info.getMainProducts() != null ? info.getMainProducts() : "");
-                dataRow.createCell(5).setCellValue(info.getProductTitle() != null ? info.getProductTitle() : "");
-                dataRow.createCell(6).setCellValue(info.getPrice() != null ? info.getPrice() : "");
-                dataRow.createCell(7).setCellValue(info.getCrawlTime() != null ?
+                dataRow.createCell(0).setCellValue(info.getId() != null ? info.getId().toString() : "");
+                dataRow.createCell(1).setCellValue(info.getCompanyName() != null ? info.getCompanyName() : "");
+                dataRow.createCell(2).setCellValue(info.getProductTitle() != null ? info.getProductTitle() : "");
+                dataRow.createCell(3).setCellValue(info.getContactPerson() != null ? info.getContactPerson() : "");
+                dataRow.createCell(4).setCellValue(info.getLandlinePhone() != null ? info.getLandlinePhone() : "");
+                dataRow.createCell(5).setCellValue(info.getMobilePhone() != null ? info.getMobilePhone() : "");
+                dataRow.createCell(6).setCellValue(info.getAddress() != null ? info.getAddress() : "");
+                dataRow.createCell(7).setCellValue(info.getFax() != null ? info.getFax() : "");
+                dataRow.createCell(8).setCellValue(info.getPageNumber() != null ? info.getPageNumber().toString() : "");
+                dataRow.createCell(9).setCellValue(info.getCrawlTime() != null ?
                         info.getCrawlTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
-                dataRow.createCell(8).setCellValue(info.getSourceUrl() != null ? info.getSourceUrl() : "");
-                dataRow.createCell(9).setCellValue(info.getPageNumber() != null ? info.getPageNumber() : -1);
+                dataRow.createCell(10).setCellValue(info.getSourceUrl() != null ? info.getSourceUrl() : "");
             }
 
             // 自动调整列宽
@@ -218,8 +218,7 @@ public class ExcelExportService {
                 CellStyle headerStyle = createHeaderStyle(workbook);
                 Row headerRow = sheet.createRow(0);
                 String[] headers = {
-                        "公司名称", "联系人", "联系电话", "地址", "主营产品",
-                        "产品标题", "价格", "爬取时间", "来源URL", "页码"
+                        "ID", "公司名称", "产品标题", "联系人", "座机", "手机", "地址", "传真", "页码", "爬取时间", "来源URL"
                 };
 
                 for (int i = 0; i < headers.length; i++) {
@@ -233,17 +232,18 @@ public class ExcelExportService {
             int lastRowNum = sheet.getLastRowNum();
             Row dataRow = sheet.createRow(lastRowNum + 1);
 
-            dataRow.createCell(0).setCellValue(manufacturer.getCompanyName() != null ? manufacturer.getCompanyName() : "");
-            dataRow.createCell(1).setCellValue(manufacturer.getContactPerson() != null ? manufacturer.getContactPerson() : "");
-            dataRow.createCell(2).setCellValue(manufacturer.getPhoneNumber() != null ? manufacturer.getPhoneNumber() : "");
-            dataRow.createCell(3).setCellValue(manufacturer.getAddress() != null ? manufacturer.getAddress() : "");
-            dataRow.createCell(4).setCellValue(manufacturer.getMainProducts() != null ? manufacturer.getMainProducts() : "");
-            dataRow.createCell(5).setCellValue(manufacturer.getProductTitle() != null ? manufacturer.getProductTitle() : "");
-            dataRow.createCell(6).setCellValue(manufacturer.getPrice() != null ? manufacturer.getPrice() : "");
-            dataRow.createCell(7).setCellValue(manufacturer.getCrawlTime() != null ?
+            dataRow.createCell(0).setCellValue(manufacturer.getId() != null ? manufacturer.getId().toString() : "");
+            dataRow.createCell(1).setCellValue(manufacturer.getCompanyName() != null ? manufacturer.getCompanyName() : "");
+            dataRow.createCell(2).setCellValue(manufacturer.getProductTitle() != null ? manufacturer.getProductTitle() : "");
+            dataRow.createCell(3).setCellValue(manufacturer.getContactPerson() != null ? manufacturer.getContactPerson() : "");
+            dataRow.createCell(4).setCellValue(manufacturer.getLandlinePhone() != null ? manufacturer.getLandlinePhone() : "");
+            dataRow.createCell(5).setCellValue(manufacturer.getMobilePhone() != null ? manufacturer.getMobilePhone() : "");
+            dataRow.createCell(6).setCellValue(manufacturer.getAddress() != null ? manufacturer.getAddress() : "");
+            dataRow.createCell(7).setCellValue(manufacturer.getFax() != null ? manufacturer.getFax() : "");
+            dataRow.createCell(8).setCellValue(manufacturer.getPageNumber() != null ? manufacturer.getPageNumber().toString() : "");
+            dataRow.createCell(9).setCellValue(manufacturer.getCrawlTime() != null ?
                     manufacturer.getCrawlTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
-            dataRow.createCell(8).setCellValue(manufacturer.getSourceUrl() != null ? manufacturer.getSourceUrl() : "");
-            dataRow.createCell(9).setCellValue(manufacturer.getPageNumber() != null ? manufacturer.getPageNumber() : -1);
+            dataRow.createCell(10).setCellValue(manufacturer.getSourceUrl() != null ? manufacturer.getSourceUrl() : "");
 
             // 保存文件
             try (FileOutputStream fileOut = new FileOutputStream(filePath)) {

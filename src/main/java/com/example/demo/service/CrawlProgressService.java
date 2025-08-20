@@ -20,8 +20,9 @@ public class CrawlProgressService {
      * 创建新的爬取进度记录
      */
     @Transactional
-    public CrawlProgress createProgress(String url, Integer totalPages) {
+    public CrawlProgress createProgress(String url, Integer totalPages, Long taskId) {
         CrawlProgress progress = new CrawlProgress(url, totalPages);
+        progress.setTaskId(taskId);
         return crawlProgressRepository.save(progress);
     }
     

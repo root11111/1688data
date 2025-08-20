@@ -22,6 +22,11 @@ public interface ManufacturerInfoRepository extends JpaRepository<ManufacturerIn
      * 根据页码查询
      */
     Page<ManufacturerInfo> findByPageNumber(Integer pageNumber, Pageable pageable);
+
+    /**
+     * 根据页码查询所有数据（不分页）
+     */
+    List<ManufacturerInfo> findByPageNumber(Integer pageNumber);
     
     /**
      * 根据关键词搜索（多字段）

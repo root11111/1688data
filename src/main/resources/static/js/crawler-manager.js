@@ -83,7 +83,7 @@ class CrawlerManager {
     createTaskCard(task) {
         const statusClass = this.getStatusClass(task.status);
         const statusText = this.getStatusText(task.status);
-        const canStart = ['PENDING', 'PAUSED'].includes(task.status);
+        const canStart = ['PENDING', 'PAUSED', 'FAILED'].includes(task.status);
         const canStop = task.status === 'RUNNING';
         const canDelete = !['RUNNING'].includes(task.status);
 
@@ -148,8 +148,11 @@ class CrawlerManager {
                 params.append('pageNumber', pageFilter);
             }
 
+            console.log('请求参数:', params.toString());
             const response = await fetch(`/api/crawler/data?${params}`);
             const data = await response.json();
+            console.log('API返回数据:', data);
+            
             this.renderData(data);
             this.renderPagination(data);
         } catch (error) {
@@ -162,7 +165,7 @@ class CrawlerManager {
         const tbody = document.getElementById('dataTableBody');
         
         if (data.content.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无数据</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">暂无数据</td></tr>';
             return;
         }
 
@@ -178,6 +181,7 @@ class CrawlerManager {
                 <td>${this.escapeHtml(item.fax || '')}</td>
                 <td><span class="badge bg-info">第${item.pageNumber}页</span></td>
                 <td>${this.formatTime(item.crawlTime)}</td>
+                <td class="url-column" title="${this.escapeHtml(item.sourceUrl || '')}">${this.escapeHtml(item.sourceUrl || '')}</td>
             </tr>
         `).join('');
 
@@ -188,6 +192,16 @@ class CrawlerManager {
     renderPagination(data) {
         const pagination = document.getElementById('pagination');
         const totalPages = data.totalPages;
+        
+        // 添加调试信息
+        console.log('分页数据:', {
+            totalPages: totalPages,
+            currentPage: this.currentPage,
+            totalElements: data.totalElements,
+            size: data.size,
+            first: data.first,
+            last: data.last
+        });
         
         if (totalPages <= 1) {
             pagination.innerHTML = '';
@@ -203,17 +217,8 @@ class CrawlerManager {
             html += `<li class="page-item"><a class="page-link" href="#" onclick="crawlerManager.goToPage(${this.currentPage - 1})">上一页</a></li>`;
         }
 
-        // 页码
-        const startPage = Math.max(0, this.currentPage - 2);
-        const endPage = Math.min(totalPages - 1, this.currentPage + 2);
-
-        for (let i = startPage; i <= endPage; i++) {
-            if (i === this.currentPage) {
-                html += `<li class="page-item active"><span class="page-link">${i + 1}</span></li>`;
-            } else {
-                html += `<li class="page-item"><a class="page-link" href="#" onclick="crawlerManager.goToPage(${i})">${i + 1}</a></li>`;
-            }
-        }
+        // 页码 - 智能分页显示
+        html = this.renderPageNumbers(html, totalPages, this.currentPage);
 
         // 下一页
         if (data.last) {
@@ -223,6 +228,64 @@ class CrawlerManager {
         }
 
         pagination.innerHTML = html;
+    }
+
+    // 智能渲染页码
+    renderPageNumbers(html, totalPages, currentPage) {
+        console.log('渲染页码:', { totalPages, currentPage, html });
+        
+        // 如果总页数小于等于7，显示所有页码
+        if (totalPages <= 7) {
+            for (let i = 0; i < totalPages; i++) {
+                if (i === currentPage) {
+                    html += `<li class="page-item active"><span class="page-link">${i + 1}</span></li>`;
+                } else {
+                    html += `<li class="page-item"><a class="page-link" href="#" onclick="crawlerManager.goToPage(${i})">${i + 1}</a></li>`;
+                }
+            }
+            console.log('总页数<=7，显示所有页码，结果:', html);
+            return html;
+        }
+
+        // 总页数大于7时，使用智能省略显示
+        const showPages = 5; // 显示的页码数量
+        let startPage = Math.max(0, currentPage - Math.floor(showPages / 2));
+        let endPage = Math.min(totalPages - 1, startPage + showPages - 1);
+
+        // 调整起始页，确保显示足够的页码
+        if (endPage - startPage + 1 < showPages) {
+            startPage = Math.max(0, endPage - showPages + 1);
+        }
+        
+        console.log('智能分页计算:', { showPages, startPage, endPage });
+
+        // 显示第一页
+        if (startPage > 0) {
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="crawlerManager.goToPage(0)">1</a></li>`;
+            if (startPage > 1) {
+                html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+            }
+        }
+
+        // 显示中间页码
+        for (let i = startPage; i <= endPage; i++) {
+            if (i === currentPage) {
+                html += `<li class="page-item active"><span class="page-link">${i + 1}</span></li>`;
+            } else {
+                html += `<li class="page-item"><a class="page-link" href="#" onclick="crawlerManager.goToPage(${i})">${i + 1}</a></li>`;
+            }
+        }
+
+        // 显示最后一页
+        if (endPage < totalPages - 1) {
+            if (endPage < totalPages - 2) {
+                html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+            }
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="crawlerManager.goToPage(${totalPages - 1})">${totalPages}</a></li>`;
+        }
+        
+        console.log('智能分页最终结果:', html);
+        return html;
     }
 
     // 搜索数据
@@ -247,7 +310,7 @@ class CrawlerManager {
         const tbody = document.getElementById('dataTableBody');
         
         if (results.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">未找到匹配结果</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">未找到匹配结果</td></tr>';
             return;
         }
 
@@ -263,6 +326,7 @@ class CrawlerManager {
                 <td>${this.escapeHtml(item.fax || '')}</td>
                 <td><span class="badge bg-info">第${item.pageNumber}页</span></td>
                 <td>${this.formatTime(item.crawlTime)}</td>
+                <td class="url-column" title="${this.escapeHtml(item.sourceUrl || '')}">${this.escapeHtml(item.sourceUrl || '')}</td>
             </tr>
         `).join('');
 
@@ -429,6 +493,148 @@ class CrawlerManager {
         }, 3000);
     }
 
+    // 导出当前页数据
+    async exportCurrentPage() {
+        try {
+            this.showExportToast('正在导出当前页数据...', 'info');
+            
+            const pageFilter = document.getElementById('pageFilter').value;
+            const params = new URLSearchParams({
+                page: this.currentPage,
+                size: this.pageSize,
+                sortBy: 'id',
+                sortDir: 'desc',
+                export: 'true'
+            });
+
+            if (pageFilter) {
+                params.append('pageNumber', pageFilter);
+            }
+
+            const response = await fetch(`/api/crawler/data/export?${params}`);
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `1688供应商数据_第${this.currentPage + 1}页_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                this.showExportToast('当前页数据导出成功！', 'success');
+            } else {
+                throw new Error('导出失败');
+            }
+        } catch (error) {
+            console.error('导出当前页失败:', error);
+            this.showExportToast('导出失败，请重试', 'danger');
+        }
+    }
+
+    // 导出全部数据
+    async exportAllData() {
+        try {
+            this.showExportToast('正在导出全部数据，请稍候...', 'info');
+            
+            const pageFilter = document.getElementById('pageFilter').value;
+            const params = new URLSearchParams({
+                export: 'true',
+                all: 'true'
+            });
+
+            if (pageFilter) {
+                params.append('pageNumber', pageFilter);
+            }
+
+            const response = await fetch(`/api/crawler/data/export?${params}`);
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `1688供应商数据_全部_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                this.showExportToast('全部数据导出成功！', 'success');
+            } else {
+                throw new Error('导出失败');
+            }
+        } catch (error) {
+            console.error('导出全部数据失败:', error);
+            this.showExportToast('导出失败，请重试', 'danger');
+        }
+    }
+
+    // 显示导出提示
+    showExportToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 250px;';
+        
+        let icon = '';
+        switch (type) {
+            case 'success':
+                icon = 'bi-check-circle';
+                break;
+            case 'danger':
+                icon = 'bi-exclamation-triangle';
+                break;
+            case 'info':
+            default:
+                icon = 'bi-info-circle';
+                break;
+        }
+        
+        toast.innerHTML = `
+            <i class="bi ${icon}"></i> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // 5秒后自动移除
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 5000);
+    }
+    
+    // 手动检查失败任务
+    async checkFailedTasks() {
+        try {
+            this.showExportToast('正在检查失败任务...', 'info');
+            
+            const response = await fetch('/api/crawler/tasks/check-failed', {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                this.showExportToast('失败任务检查已触发: ' + result.message, 'success');
+                
+                // 刷新任务列表和统计信息
+                setTimeout(() => {
+                    this.loadTasks();
+                    this.loadStats();
+                }, 2000);
+            } else {
+                const error = await response.json();
+                this.showExportToast('检查失败任务失败: ' + error.error, 'danger');
+            }
+        } catch (error) {
+            console.error('检查失败任务失败:', error);
+            this.showExportToast('检查失败任务失败，请重试', 'danger');
+        }
+    }
+
     // 工具方法
     getStatusClass(status) {
         const statusMap = {
@@ -493,6 +699,18 @@ function searchData() {
 
 function refreshData() {
     crawlerManager.refreshData();
+}
+
+function exportCurrentPage() {
+    crawlerManager.exportCurrentPage();
+}
+
+function exportAllData() {
+    crawlerManager.exportAllData();
+}
+
+function checkFailedTasks() {
+    crawlerManager.checkFailedTasks();
 }
 
 // 页面加载完成后初始化
