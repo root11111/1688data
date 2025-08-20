@@ -162,7 +162,7 @@ class CrawlerManager {
         const tbody = document.getElementById('dataTableBody');
         
         if (data.content.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无数据</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无数据</td></tr>';
             return;
         }
 
@@ -172,8 +172,10 @@ class CrawlerManager {
                 <td>${this.escapeHtml(item.companyName || '')}</td>
                 <td>${this.escapeHtml(item.productTitle || '')}</td>
                 <td>${this.escapeHtml(item.contactPerson || '')}</td>
-                <td>${this.escapeHtml(item.phoneNumber || '')}</td>
+                <td>${this.escapeHtml(item.landlinePhone || '')}</td>
+                <td>${this.escapeHtml(item.mobilePhone || '')}</td>
                 <td>${this.escapeHtml(item.address || '')}</td>
+                <td>${this.escapeHtml(item.fax || '')}</td>
                 <td><span class="badge bg-info">第${item.pageNumber}页</span></td>
                 <td>${this.formatTime(item.crawlTime)}</td>
             </tr>
@@ -245,7 +247,7 @@ class CrawlerManager {
         const tbody = document.getElementById('dataTableBody');
         
         if (results.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">未找到匹配结果</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">未找到匹配结果</td></tr>';
             return;
         }
 
@@ -255,8 +257,10 @@ class CrawlerManager {
                 <td>${this.escapeHtml(item.companyName || '')}</td>
                 <td>${this.escapeHtml(item.productTitle || '')}</td>
                 <td>${this.escapeHtml(item.contactPerson || '')}</td>
-                <td>${this.escapeHtml(item.phoneNumber || '')}</td>
+                <td>${this.escapeHtml(item.landlinePhone || '')}</td>
+                <td>${this.escapeHtml(item.mobilePhone || '')}</td>
                 <td>${this.escapeHtml(item.address || '')}</td>
+                <td>${this.escapeHtml(item.fax || '')}</td>
                 <td><span class="badge bg-info">第${item.pageNumber}页</span></td>
                 <td>${this.formatTime(item.crawlTime)}</td>
             </tr>
@@ -394,6 +398,37 @@ class CrawlerManager {
         this.loadData();
     }
 
+    // 刷新数据
+    refreshData() {
+        // 重置到第一页
+        this.currentPage = 0;
+        // 重新加载数据
+        this.loadData();
+        // 显示刷新提示
+        this.showRefreshToast();
+    }
+
+    // 显示刷新提示
+    showRefreshToast() {
+        // 创建一个简单的提示
+        const toast = document.createElement('div');
+        toast.className = 'alert alert-success alert-dismissible fade show position-fixed';
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 200px;';
+        toast.innerHTML = `
+            <i class="bi bi-check-circle"></i> 数据已刷新
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // 3秒后自动移除
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 3000);
+    }
+
     // 工具方法
     getStatusClass(status) {
         const statusMap = {
@@ -454,6 +489,10 @@ function createTask() {
 
 function searchData() {
     crawlerManager.searchData();
+}
+
+function refreshData() {
+    crawlerManager.refreshData();
 }
 
 // 页面加载完成后初始化

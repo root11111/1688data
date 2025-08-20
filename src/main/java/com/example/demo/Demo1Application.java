@@ -10,7 +10,7 @@ public class Demo1Application {
         // 正常启动Spring Boot应用，不自动执行爬虫任务
         SpringApplication.run(Demo1Application.class, args);
         System.out.println("=== 1688爬虫管理系统已启动 ===");
-        System.out.println("请访问 http://localhost:8083 来管理爬虫任务");
+        System.out.println("请访问 http://localhost:8080 来管理爬虫任务");
     }
 
 }

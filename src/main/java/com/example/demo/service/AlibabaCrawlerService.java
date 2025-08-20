@@ -153,21 +153,22 @@ public class AlibabaCrawlerService {
                         ManufacturerInfo info = extractBasicInfo(item, url, driver);
                         info.setPageNumber(page); // 设置页码
                         
-                        // 立即保存到数据库
+                        // 先保存基本信息到数据库，获取ID
+                        ManufacturerInfo savedInfo = null;
                         try {
-                            ManufacturerInfo savedInfo = manufacturerInfoService.save(info);
+                            savedInfo = manufacturerInfoService.save(info);
                             if (savedInfo != null && savedInfo.getId() != null) {
-                                System.out.println("📄 第" + page + "页 - ✅ 商品数据已保存到数据库: " + info.getCompanyName() + " (ID: " + savedInfo.getId() + ")");
-                                // 添加到内存列表（用于返回）
-                                manufacturerInfos.add(savedInfo);
-                                // 增加成功处理计数
-                                processedItemsOnPage++;
+                                System.out.println("📄 第" + page + "页 - ✅ 基本信息已保存到数据库: " + info.getCompanyName() + " (ID: " + savedInfo.getId() + ")");
+                                // 更新info对象，确保有正确的ID
+                                info.setId(savedInfo.getId());
                             } else {
-                                System.err.println("📄 第" + page + "页 - ❌ 商品数据保存到数据库失败: " + info.getCompanyName());
+                                System.err.println("📄 第" + page + "页 - ❌ 基本信息保存到数据库失败: " + info.getCompanyName());
+                                continue; // 如果保存失败，跳过此商品
                             }
                         } catch (Exception dbEx) {
-                            System.err.println("📄 第" + page + "页 - ❌ 保存到数据库异常: " + dbEx.getMessage());
+                            System.err.println("📄 第" + page + "页 - ❌ 保存基本信息异常: " + dbEx.getMessage());
                             dbEx.printStackTrace();
+                            continue; // 如果保存失败，跳过此商品
                         }
 
                         // 5. 点击列表链接进入详情页
@@ -286,6 +287,23 @@ public class AlibabaCrawlerService {
                             // 7. 在联系方式页面提取数据
                             System.out.println("📄 第" + page + "页 - 📋 开始提取联系方式信息...");
                             extractContactInfo(driver, info);
+
+                            // 提取完联系方式信息后，更新数据库
+                            try {
+                                ManufacturerInfo updatedInfo = manufacturerInfoService.save(info);
+                                if (updatedInfo != null) {
+                                    System.out.println("📄 第" + page + "页 - ✅ 联系方式信息已更新到数据库: " + info.getCompanyName());
+                                    // 添加到内存列表（用于返回）
+                                    manufacturerInfos.add(updatedInfo);
+                                    // 增加成功处理计数
+                                    processedItemsOnPage++;
+                                } else {
+                                    System.err.println("📄 第" + page + "页 - ❌ 联系方式信息更新到数据库失败: " + info.getCompanyName());
+                                }
+                            } catch (Exception updateEx) {
+                                System.err.println("📄 第" + page + "页 - ❌ 更新联系方式信息异常: " + updateEx.getMessage());
+                                updateEx.printStackTrace();
+                            }
 
                             // 提取完成后关闭联系方式页面，切换回详情页
                             driver.close();
@@ -546,6 +564,9 @@ public class AlibabaCrawlerService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        
+        // 设置爬取时间
+        info.setCrawlTime(LocalDateTime.now());
 
         // 调试：打印页面标题和URL
         System.out.println("📄 当前页面标题: " + driver.getTitle());
@@ -615,31 +636,31 @@ public class AlibabaCrawlerService {
             System.err.println("【联系人】提取联系人失败: " + e.getMessage());
         }
 
-        // 电话 - 使用多种选择器
+        // 座机电话 - 使用多种选择器
         try {
-            System.out.println("🔍 尝试查找电话元素...");
-            String phone = "";
+            System.out.println("🔍 尝试查找座机电话元素...");
+            String landlinePhone = "";
 
             // 方法1：使用原有的XPath
             try {
                 WebElement phoneElement = driver.findElement(By.xpath("//div[contains(text(), '电话：')]/following-sibling::div[1]"));
-                phone = (String) ((JavascriptExecutor) driver)
+                landlinePhone = (String) ((JavascriptExecutor) driver)
                         .executeScript("return arguments[0].textContent || arguments[0].innerText;", phoneElement);
-                phone = phone.trim();
+                landlinePhone = landlinePhone.trim();
             } catch (Exception e) {
-                System.out.println("电话方法1失败，尝试方法2...");
+                System.out.println("座机电话方法1失败，尝试方法2...");
             }
 
-            if (!phone.isEmpty() && !phone.equals("暂无")) {
-                info.setPhoneNumber(phone);
-                System.out.println("📞 提取到电话: " + phone);
+            if (!landlinePhone.isEmpty() && !landlinePhone.equals("暂无")) {
+                info.setLandlinePhone(landlinePhone);
+                System.out.println("📞 提取到座机电话: " + landlinePhone);
             } else {
-                info.setPhoneNumber("");
-                System.err.println("❌ 未能提取到电话");
+                info.setLandlinePhone("");
+                System.err.println("❌ 未能提取到座机电话");
             }
         } catch (Exception e) {
-            info.setPhoneNumber("");
-            System.err.println("❌ 提取电话失败: " + e.getMessage());
+            info.setLandlinePhone("");
+            System.err.println("❌ 提取座机电话失败: " + e.getMessage());
         }
 
         // 手机 - 使用多种选择器
@@ -659,8 +680,8 @@ public class AlibabaCrawlerService {
 
 
             if (!mobile.isEmpty() && !mobile.equals("暂无")) {
-                // 如果手机号不为空，优先使用手机号
-                info.setPhoneNumber(mobile);
+                // 设置手机号到专门的字段
+                info.setMobilePhone(mobile);
                 System.out.println("📱 提取到手机: " + mobile);
             }
         } catch (Exception e) {
@@ -757,17 +778,29 @@ public class AlibabaCrawlerService {
         if (info.getContactPerson() != null && !info.getContactPerson().isEmpty()) {
             contactInfoBuilder.append("联系人: ").append(info.getContactPerson());
         }
-        if (info.getPhoneNumber() != null && !info.getPhoneNumber().isEmpty()) {
+        if (info.getLandlinePhone() != null && !info.getLandlinePhone().isEmpty()) {
             if (contactInfoBuilder.length() > 0) {
                 contactInfoBuilder.append(" | ");
             }
-            contactInfoBuilder.append("电话: ").append(info.getPhoneNumber());
+            contactInfoBuilder.append("座机: ").append(info.getLandlinePhone());
+        }
+        if (info.getMobilePhone() != null && !info.getMobilePhone().isEmpty()) {
+            if (contactInfoBuilder.length() > 0) {
+                contactInfoBuilder.append(" | ");
+            }
+            contactInfoBuilder.append("手机: ").append(info.getMobilePhone());
         }
         if (info.getAddress() != null && !info.getAddress().isEmpty()) {
             if (contactInfoBuilder.length() > 0) {
                 contactInfoBuilder.append(" | ");
             }
             contactInfoBuilder.append("地址: ").append(info.getAddress());
+        }
+        if (info.getFax() != null && !info.getFax().isEmpty() && !info.getFax().equals("暂无")) {
+            if (contactInfoBuilder.length() > 0) {
+                contactInfoBuilder.append(" | ");
+            }
+            contactInfoBuilder.append("传真: ").append(info.getFax());
         }
 
         if (contactInfoBuilder.length() > 0) {
