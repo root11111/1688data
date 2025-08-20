@@ -3,362 +3,244 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1688供应商信息爬虫</title>
+    <title>1688爬虫管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Microsoft YaHei', Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
+        .task-card {
+            transition: all 0.3s ease;
         }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #555;
-        }
-        input[type="text"], input[type="number"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-        }
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .checkbox-group input[type="checkbox"] {
-            width: auto;
-            margin-right: 10px;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            padding: 12px 30px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-right: 10px;
-            margin-bottom: 10px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        .btn-success {
-            background-color: #28a745;
-        }
-        .btn-success:hover {
-            background-color: #218838;
-        }
-        .btn-warning {
-            background-color: #ffc107;
-            color: #212529;
-        }
-        .btn-warning:hover {
-            background-color: #e0a800;
-        }
-        .result {
-            margin-top: 30px;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-        }
-        .loading {
-            text-align: center;
-            color: #666;
-        }
-        .error {
-            color: #dc3545;
-            background-color: #f8d7da;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-        }
-        .success {
-            color: #155724;
-            background-color: #d4edda;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
+        .status-badge {
+            font-size: 0.8rem;
         }
         .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
+            font-size: 0.9rem;
         }
-        .data-table th, .data-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        .data-table th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-        .data-table tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-        .export-info {
-            background-color: #e7f3ff;
-            border: 1px solid #b3d9ff;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-        }
-        .file-link {
-            color: #007bff;
-            text-decoration: none;
-        }
-        .file-link:hover {
-            text-decoration: underline;
+        .search-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>1688供应商信息爬虫</h1>
-        
-        <div class="form-group">
-            <label for="url">1688搜索页面URL:</label>
-            <input type="text" id="url" placeholder="请输入1688搜索页面的URL" 
-                   value="https://www.1688.com/zw/page.html?spm=a312h.2018_new_sem.dh_001.2.2f6f5576Ce3nO9&hpageId=old-sem-pc-list&cosite=baidujj_pz&keywords=%E5%90%88%E8%82%A5%E9%94%82%E7%94%B5%E6%B1%A0%E7%BB%84&trackid=885662561117990122602&location=re&ptid=01770000000464ce963d082f6fbe7ca7&exp=pcSemFumian%3AC%3BpcDacuIconExp%3AA%3BpcCpxGuessExp%3AB%3BpcCpxCpsExp%3AB%3Bqztf%3AE%3Bwysiwyg%3AB%3BhotBangdanExp%3AB%3BpcSemWwClick%3AA%3BpcSemDownloadPlugin%3AA%3Basst%3AF&sortType=&descendOrder=&province=&city=&priceStart=&priceEnd=&dis=&provinceValue=%E6%89%80%E5%9C%A8%E5%9C%B0%E5%8C%BA&p_rs=true">
+    <div class="container-fluid">
+        <!-- 头部 -->
+        <div class="row bg-dark text-white p-3 mb-4">
+            <div class="col">
+                <h1><i class="bi bi-robot"></i> 1688爬虫管理系统</h1>
+                <p class="mb-0">智能爬取，数据管理，任务监控</p>
+            </div>
         </div>
-        
-        <div class="form-group">
-            <label for="pages">爬取页数:</label>
-            <input type="number" id="pages" value="1" min="1" max="10">
+
+        <!-- 统计卡片 -->
+        <div class="row mb-4" id="statsRow">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">总任务数</h5>
+                        <h2 id="totalTasks">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">运行中</h5>
+                        <h2 id="runningTasks">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">待处理</h5>
+                        <h2 id="pendingTasks">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h5 class="card-title">总数据量</h5>
+                        <h2 id="totalData">-</h2>
+                    </div>
+                </div>
+            </div>
         </div>
-        
-        <div class="checkbox-group">
-            <input type="checkbox" id="exportExcel" checked>
-            <label for="exportExcel">自动导出到Excel文件</label>
+
+        <!-- 搜索区域 -->
+        <div class="search-box">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h4><i class="bi bi-search"></i> 数据查询</h4>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="searchInput" placeholder="输入公司名称、产品标题、联系人等关键词搜索...">
+                        <button class="btn btn-light" type="button" onclick="searchData()">
+                            <i class="bi bi-search"></i> 搜索
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <button class="btn btn-success btn-lg" onclick="showCreateTaskModal()">
+                        <i class="bi bi-plus-circle"></i> 新建爬取任务
+                    </button>
+                </div>
+            </div>
         </div>
-        
-        <div>
-            <button onclick="startCrawl()">开始爬取</button>
-            <button onclick="testCrawl()">测试爬取</button>
-            <button onclick="checkHealth()">检查服务状态</button>
-            <button class="btn-success" onclick="exportCurrentData()" id="exportBtn" style="display: none;">导出当前数据到Excel</button>
-        </div>
-        
-        <div id="result" class="result" style="display: none;">
-            <div id="loading" class="loading">正在爬取数据，请稍候...</div>
-            <div id="error" class="error" style="display: none;"></div>
-            <div id="success" class="success" style="display: none;"></div>
-            <div id="export-info" class="export-info" style="display: none;"></div>
-            <div id="data-container"></div>
+
+        <!-- 标签页 -->
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks" type="button" role="tab">
+                    <i class="bi bi-list-task"></i> 任务管理
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="data-tab" data-bs-toggle="tab" data-bs-target="#data" type="button" role="tab">
+                    <i class="bi bi-database"></i> 数据查询
+                </button>
+            </li>
+        </ul>
+
+        <!-- 标签页内容 -->
+        <div class="tab-content" id="mainTabsContent">
+            <!-- 任务管理标签页 -->
+            <div class="tab-pane fade show active" id="tasks" role="tabpanel">
+                <div class="row mt-3">
+                    <div class="col">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-list-task"></i> 爬取任务列表</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="tasksList">
+                                    <!-- 任务列表将通过JavaScript动态加载 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据查询标签页 -->
+            <div class="tab-pane fade" id="data" role="tabpanel">
+                <div class="row mt-3">
+                    <div class="col">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-database"></i> 爬取数据列表</h5>
+                                <div class="row mt-2">
+                                    <div class="col-md-3">
+                                        <select class="form-select" id="pageFilter">
+                                            <option value="">所有页码</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <select class="form-select" id="pageSize">
+                                            <option value="10">10条/页</option>
+                                            <option value="20" selected>20条/页</option>
+                                            <option value="50">50条/页</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-striped data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>公司名称</th>
+                                                <th>产品标题</th>
+                                                <th>联系人</th>
+                                                <th>电话</th>
+                                                <th>地址</th>
+                                                <th>页码</th>
+                                                <th>爬取时间</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="dataTableBody">
+                                            <!-- 数据表格将通过JavaScript动态加载 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <!-- 分页 -->
+                                <nav>
+                                    <ul class="pagination justify-content-center" id="pagination">
+                                        <!-- 分页将通过JavaScript动态生成 -->
+                                    </ul>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <script>
-        let currentData = null;
+    <!-- 新建任务模态框 -->
+    <div class="modal fade" id="createTaskModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">新建爬取任务</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createTaskForm">
+                        <div class="mb-3">
+                            <label class="form-label">任务名称 *</label>
+                            <input type="text" class="form-control" id="taskName" required placeholder="请输入任务名称">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">爬取URL *</label>
+                            <input type="url" class="form-control" id="taskUrl" required placeholder="请输入1688搜索页面URL">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">最大页数 *</label>
+                            <input type="number" class="form-control" id="maxPages" required min="1" max="100" value="5">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">任务描述</label>
+                            <textarea class="form-control" id="taskDescription" rows="3" placeholder="请输入任务描述（可选）"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="createTask()">创建任务</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        function startCrawl() {
-            const url = document.getElementById('url').value;
-            const pages = document.getElementById('pages').value;
-            const exportExcel = document.getElementById('exportExcel').checked;
-            
-            if (!url) {
-                alert('请输入URL');
-                return;
-            }
-            
-            showResult();
-            showLoading();
-            hideError();
-            hideSuccess();
-            hideExportInfo();
-            
-            fetch(`/api/crawler/1688?url=${encodeURIComponent(url)}&pages=${pages}&exportToExcel=${exportExcel}`)
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    currentData = data.data;
-                    
-                    if (data.success) {
-                        showSuccess(`爬取成功！共获取 ${data.total} 条供应商信息`);
-                        displayData(data.data);
-                        
-                        if (data.excelFilePath) {
-                            showExportInfo(`Excel文件已导出到: ${data.excelFilePath}`);
-                        }
-                        
-                        if (data.data && data.data.length > 0) {
-                            document.getElementById('exportBtn').style.display = 'inline-block';
-                        }
-                    } else {
-                        showError(`爬取失败: ${data.message}`);
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    showError(`请求失败: ${error.message}`);
-                });
-        }
-        
-        function testCrawl() {
-            const exportExcel = document.getElementById('exportExcel').checked;
-            
-            showResult();
-            showLoading();
-            hideError();
-            hideSuccess();
-            hideExportInfo();
-            
-            fetch(`/api/crawler/1688/test?exportToExcel=${exportExcel}`)
-                .then(response => response.json())
-                .then(data => {
-                    hideLoading();
-                    currentData = data.data;
-                    
-                    if (data.success) {
-                        showSuccess(`测试爬取成功！共获取 ${data.total} 条供应商信息`);
-                        displayData(data.data);
-                        
-                        if (data.excelFilePath) {
-                            showExportInfo(`Excel文件已导出到: ${data.excelFilePath}`);
-                        }
-                        
-                        if (data.data && data.data.length > 0) {
-                            document.getElementById('exportBtn').style.display = 'inline-block';
-                        }
-                    } else {
-                        showError(`测试爬取失败: ${data.message}`);
-                    }
-                })
-                .catch(error => {
-                    hideLoading();
-                    showError(`请求失败: ${error.message}`);
-                });
-        }
-        
-        function exportCurrentData() {
-            if (!currentData || currentData.length === 0) {
-                alert('没有数据可导出');
-                return;
-            }
-            
-            fetch('/api/crawler/export', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(currentData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showExportInfo(`Excel文件已导出到: ${data.excelFilePath}`);
-                } else {
-                    showError(`导出失败: ${data.message}`);
-                }
-            })
-            .catch(error => {
-                showError(`导出请求失败: ${error.message}`);
-            });
-        }
-        
-        function checkHealth() {
-            fetch('/api/crawler/health')
-                .then(response => response.json())
-                .then(data => {
-                    alert(`服务状态: ${data.status}\n${data.message}`);
-                })
-                .catch(error => {
-                    alert(`检查服务状态失败: ${error.message}`);
-                });
-        }
-        
-        function displayData(data) {
-            const container = document.getElementById('data-container');
-            if (!data || data.length === 0) {
-                container.innerHTML = '<p>没有获取到数据</p>';
-                return;
-            }
-            
-            let html = '<table class="data-table">';
-            html += '<tr><th>公司名称</th><th>联系人</th><th>联系电话</th><th>地址</th><th>主营产品</th><th>价格</th><th>爬取时间</th></tr>';
-            
-            data.forEach(item => {
-                html += '<tr>';
-                html += `<td>${item.companyName || '-'}</td>`;
-                html += `<td>${item.contactPerson || '-'}</td>`;
-                html += `<td>${item.phoneNumber || '-'}</td>`;
-                html += `<td>${item.address || '-'}</td>`;
-                html += `<td>${item.mainProducts || '-'}</td>`;
-                html += `<td>${item.price || '-'}</td>`;
-                html += `<td>${item.crawlTime || '-'}</td>`;
-                html += '</tr>';
-            });
-            
-            html += '</table>';
-            container.innerHTML = html;
-        }
-        
-        function showResult() {
-            document.getElementById('result').style.display = 'block';
-        }
-        
-        function showLoading() {
-            document.getElementById('loading').style.display = 'block';
-        }
-        
-        function hideLoading() {
-            document.getElementById('loading').style.display = 'none';
-        }
-        
-        function showError(message) {
-            const errorDiv = document.getElementById('error');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-        }
-        
-        function hideError() {
-            document.getElementById('error').style.display = 'none';
-        }
-        
-        function showSuccess(message) {
-            const successDiv = document.getElementById('success');
-            successDiv.textContent = message;
-            successDiv.style.display = 'block';
-        }
-        
-        function hideSuccess() {
-            document.getElementById('success').style.display = 'none';
-        }
-        
-        function showExportInfo(message) {
-            const exportDiv = document.getElementById('export-info');
-            exportDiv.innerHTML = message;
-            exportDiv.style.display = 'block';
-        }
-        
-        function hideExportInfo() {
-            document.getElementById('export-info').style.display = 'none';
-        }
-    </script>
+    <!-- 确认删除模态框 -->
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">确认删除</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>确定要删除这个任务吗？此操作不可恢复。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmDelete()">确认删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/crawler-manager.js"></script>
 </body>
 </html> 

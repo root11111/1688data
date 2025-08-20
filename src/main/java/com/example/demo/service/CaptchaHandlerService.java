@@ -14,56 +14,25 @@ import java.util.Random;
 public class CaptchaHandlerService {
 
     /**
-     * 检查是否存在验证码
+     * 检查是否存在验证码（优化版，减少误判）
      */
     public boolean checkForCaptcha(WebDriver driver) {
         try {
-            // 扩展的验证码检测选择器
+            // 更精确的验证码检测选择器，减少误判
             List<String> captchaSelectors = List.of(
-                    // 1688特定的验证码选择器
-                    "//div[contains(@class, 'nc_wrapper')]",
-                    "//div[contains(@class, 'nc_scale')]",
-                    "//div[contains(@class, 'nc_scale_text')]",
-                    "//div[contains(@class, 'nc_scale')]//span[contains(@class, 'nc_iconfont')]",
-                    "//div[contains(@class, 'nc_scale')]//span[contains(@class, 'nc_scale_text')]",
-                    "//div[contains(@class, 'nc_wrapper')]//div[contains(@class, 'nc_scale')]",
-                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_text')]",
-                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_slider')]",
-                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]",
-
-                    // 通用验证码选择器
-                    "//div[contains(@class, 'captcha')]",
-                    "//div[contains(@class, 'slider')]",
-                    "//div[contains(@class, 'verify')]",
-                    "//div[contains(@class, 'security')]",
-                    "//iframe[contains(@src, 'captcha')]",
-                    "//div[contains(text(), '验证')]",
-                    "//div[contains(text(), '滑动')]",
-                    "//div[contains(text(), '安全验证')]",
-                    "//div[contains(text(), '请完成验证')]",
-                    "//div[contains(text(), '拖动滑块')]",
-                    "//div[contains(text(), '滑动验证')]",
-
-                    // 更多1688特定的选择器
-                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_slider')]",
-                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]",
-                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_text')]",
-                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_track')]",
-                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_bar')]",
-                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//span",
-                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_btn')]//i",
-
+                    // 1688特定的验证码选择器 - 只检测真正需要交互的滑块
+                    "//div[contains(@class, 'nc_scale') and contains(@class, 'nc_scale_slider')]",
+                    "//div[contains(@class, 'nc_scale')]//div[contains(@class, 'nc_scale_slider') and contains(@class, 'nc_scale_btn')]",
+                    "//div[contains(@class, 'nc_wrapper')]//div[contains(@class, 'nc_scale_slider')]",
+                    
                     // 图片验证码选择器
                     "//div[contains(@class, 'captcha-img')]",
                     "//div[contains(@class, 'captcha-image')]",
                     "//img[contains(@src, 'captcha')]",
-                    "//div[contains(@class, 'captcha')]//img",
-
-                    // 安全验证选择器
-                    "//div[contains(@class, 'security-check')]",
-                    "//div[contains(@class, 'security-verify')]",
-                    "//div[contains(@class, 'safety-check')]",
-                    "//div[contains(@class, 'risk-check')]"
+                    
+                    // 安全验证选择器 - 只检测真正需要验证的
+                    "//div[contains(@class, 'security-check') and contains(@class, 'active')]",
+                    "//div[contains(@class, 'security-verify') and contains(@class, 'active')]"
             );
 
             for (String selector : captchaSelectors) {
@@ -86,11 +55,13 @@ public class CaptchaHandlerService {
                 return true;
             }
 
-            // 检查页面源码中是否包含验证码相关文字
+            // 检查页面源码中是否包含验证码相关文字（更精确的检测）
             String pageSource = driver.getPageSource();
-            if (pageSource.contains("nc_scale") || pageSource.contains("滑动验证") ||
-                    pageSource.contains("请完成验证") || pageSource.contains("拖动滑块")) {
-                System.out.println("🔍 页面源码包含验证码相关文字");
+            // 只检测真正需要交互的验证码，避免误判
+            if ((pageSource.contains("nc_scale_slider") && pageSource.contains("nc_scale_btn")) ||
+                    pageSource.contains("请拖动滑块完成验证") ||
+                    pageSource.contains("请完成滑动验证")) {
+                System.out.println("🔍 页面源码包含真正需要交互的验证码");
                 return true;
             }
 

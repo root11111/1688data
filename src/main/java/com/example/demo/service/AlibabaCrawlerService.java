@@ -70,24 +70,28 @@ public class AlibabaCrawlerService {
 
         try {
             // 1. 打开网页
-            System.out.println("正在访问页面: " + url);
+            System.out.println("🔄 正在访问页面: " + url);
             driver.get(url);
 
             // 执行反检测脚本
+            System.out.println("🔧 执行反检测脚本...");
             antiDetectionService.executeAntiDetectionScripts(driver);
 
             // 等待页面加载
+            System.out.println("⏳ 等待页面加载...");
             wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]")));
 
             // 模拟人类行为
+            System.out.println("🤖 模拟人类行为...");
             antiDetectionService.simulateHumanBehavior(driver);
 
             // 随机等待，模拟人类行为
+            System.out.println("⏰ 随机等待...");
             antiDetectionService.randomWait(2000, 5000);
 
             // 2. 循环翻页（支持断点续传）
             for (int page = progress.getCurrentPage(); page <= maxPages; page++) {
-                System.out.println("正在处理第 " + page + " 页...");
+                System.out.println("📄 ========== 开始处理第 " + page + " 页 ==========");
                 
                 // 更新进度状态
                 progress.setStatus("IN_PROGRESS");
@@ -95,16 +99,26 @@ public class AlibabaCrawlerService {
                 crawlProgressService.updateProgress(progress.getId(), page, progress.getCurrentItemIndex(), "IN_PROGRESS");
 
                 // 3. 滚动网页
+                System.out.println("📄 第" + page + "页 - 开始滚动页面...");
                 scrollPage(driver);
 
                 // 4. 获取商品列表 - 使用八爪鱼的方式：不固定元素列表，动态获取
                 List<WebElement> items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
                 int totalItemsOnPage = items.size(); // 保存原始商品数量
                 int processedItemsOnPage = 0; // 实际处理的商品数量
-                System.out.println("找到 " + totalItemsOnPage + " 个商品");
+                System.out.println("📄 第" + page + "页 - 找到 " + totalItemsOnPage + " 个商品");
+                
+                // 如果没有找到商品，尝试其他选择器
+                if (totalItemsOnPage == 0) {
+                    System.out.println("📄 第" + page + "页 - ⚠️ 使用默认选择器未找到商品，尝试其他选择器...");
+                    items = driver.findElements(By.xpath("//div[contains(@class, 'offer_item')]"));
+                    totalItemsOnPage = items.size();
+                    System.out.println("📄 第" + page + "页 - 🔍 使用备用选择器找到 " + totalItemsOnPage + " 个商品");
+                }
 
                 // 确定开始处理的商品索引（支持断点续传）
                 int startIndex = (page == progress.getCurrentPage()) ? progress.getCurrentItemIndex() : 0;
+                System.out.println("📄 第" + page + "页 - 🔍 开始处理，起始索引: " + startIndex + "，商品总数: " + items.size());
                 
                 for (int i = startIndex; i < items.size(); i++) {
                     try {
@@ -112,12 +126,14 @@ public class AlibabaCrawlerService {
                         progress.setCurrentItemIndex(i);
                         crawlProgressService.updateProgress(progress.getId(), page, i, "IN_PROGRESS");
                         
+                        System.out.println("📄 第" + page + "页 - 🎯 开始处理第 " + (i + 1) + " 个商品...");
+                        
                         // 验证WebDriver会话是否仍然有效
                         try {
                             driver.getTitle(); // 简单的会话验证
                         } catch (Exception sessionEx) {
-                            System.err.println("❌ WebDriver会话已失效: " + sessionEx.getMessage());
-                            System.err.println("❌ 爬取终止，请重启程序");
+                            System.err.println("📄 第" + page + "页 - ❌ WebDriver会话已失效: " + sessionEx.getMessage());
+                            System.err.println("📄 第" + page + "页 - ❌ 爬取终止，请重启程序");
                             // 保存当前进度
                             crawlProgressService.updateProgress(progress.getId(), page, i, "FAILED");
                             return manufacturerInfos; // 直接返回已获取的数据
@@ -125,9 +141,9 @@ public class AlibabaCrawlerService {
 
                         // 重新获取元素列表，防止StaleElementReferenceException
                         items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
-                        System.out.println("🔍 重新获取商品列表，当前找到 " + items.size() + " 个商品，正在处理第 " + (i + 1) + " 个");
+                        System.out.println("📄 第" + page + "页 - 🔍 重新获取商品列表，当前找到 " + items.size() + " 个商品，正在处理第 " + (i + 1) + " 个");
                         if (i >= items.size()) {
-                            System.out.println("⚠️ 商品索引超出范围，结束当前页面处理");
+                            System.out.println("📄 第" + page + "页 - ⚠️ 商品索引超出范围，结束当前页面处理");
                             break;
                         }
 
@@ -141,14 +157,16 @@ public class AlibabaCrawlerService {
                         try {
                             boolean exportSuccess = excelExportService.appendToDefaultPath(info);
                             if (exportSuccess) {
-                                System.out.println("✅ 商品数据已写入Excel: " + info.getCompanyName());
+                                System.out.println("📄 第" + page + "页 - ✅ 商品数据已写入Excel: " + info.getCompanyName());
                                 // 添加到内存列表（用于返回）
                                 manufacturerInfos.add(info);
+                                // 增加成功处理计数
+                                processedItemsOnPage++;
                             } else {
-                                System.err.println("❌ 商品数据写入Excel失败: " + info.getCompanyName());
+                                System.err.println("📄 第" + page + "页 - ❌ 商品数据写入Excel失败: " + info.getCompanyName());
                             }
                         } catch (Exception exportEx) {
-                            System.err.println("❌ 写入Excel异常: " + exportEx.getMessage());
+                            System.err.println("📄 第" + page + "页 - ❌ 写入Excel异常: " + exportEx.getMessage());
                             exportEx.printStackTrace();
                         }
 
@@ -158,7 +176,7 @@ public class AlibabaCrawlerService {
                         antiDetectionService.randomWait(1000, 2000);
 
                         // 按照八爪鱼的方式：点击列表链接
-                        System.out.println("🖱️ 尝试点击第 " + (i + 1) + " 个商品链接...");
+                        System.out.println("📄 第" + page + "页 - 🖱️ 尝试点击第 " + (i + 1) + " 个商品链接...");
 
                         // 在商品卡片中查找链接元素
                         WebElement linkElement = item.findElement(By.xpath(".//a[contains(@href, 'dj.1688.com/ci_bb')]"));
@@ -177,9 +195,9 @@ public class AlibabaCrawlerService {
                                 }
                             }
 
-                            System.out.println("✅ 成功打开商品详情页");
+                            System.out.println("📄 第" + page + "页 - ✅ 成功打开商品详情页");
                         } else {
-                            System.out.println("⚠️ 点击链接未打开新页面，尝试获取链接直接打开");
+                            System.out.println("📄 第" + page + "页 - ⚠️ 点击链接未打开新页面，尝试获取链接直接打开");
                             // 尝试获取链接直接打开
                             String productUrl = getProductUrl(item);
                             if (productUrl != null && !productUrl.isEmpty()) {
@@ -193,7 +211,7 @@ public class AlibabaCrawlerService {
                                     }
                                 }
                             } else {
-                                System.err.println("❌ 无法获取商品链接，跳过此商品");
+                                System.err.println("📄 第" + page + "页 - ❌ 无法获取商品链接，跳过此商品");
                                 continue;
                             }
                         }
@@ -211,18 +229,24 @@ public class AlibabaCrawlerService {
 
                         // 再次检查联系方式页面是否出现验证码
                         if (captchaHandler.checkForCaptcha(driver)) {
+                            System.out.println("📄 第" + page + "页 - ⚠️ 检测到验证码，尝试处理...");
                             if (captchaHandler.handleCaptcha(driver)) {
-                                break;
+                                System.out.println("📄 第" + page + "页 - ✅ 验证码处理成功，继续...");
+                            } else {
+                                System.out.println("📄 第" + page + "页 - ❌ 验证码处理失败，跳过此商品");
+                                continue;
                             }
                         }
 
                         // 等待新页面加载并提取详细信息
                         try {
+                            System.out.println("📄 第" + page + "页 - 🔍 等待联系方式按钮出现...");
                             // 等待联系方式按钮出现
                             WebElement contactButton = wait.until(ExpectedConditions.elementToBeClickable(
                                     By.xpath("//a[contains(text(), '联系方式')]")));
 
                             // 6. 点击联系方式按钮
+                            System.out.println("📄 第" + page + "页 - 🖱️ 点击联系方式按钮...");
                             String currentWindow = driver.getWindowHandle();
                             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", contactButton);
                             antiDetectionService.randomWait(2000, 4000);
@@ -239,8 +263,8 @@ public class AlibabaCrawlerService {
                                     String newPageUrl = driver.getCurrentUrl();
                                     String newPageTitle = driver.getTitle();
 
-                                    System.out.println("🔍 检查新页面 - URL: " + newPageUrl);
-                                    System.out.println("🔍 检查新页面 - Title: " + newPageTitle);
+                                    System.out.println("📄 第" + page + "页 - 🔍 检查新页面 - URL: " + newPageUrl);
+                                    System.out.println("📄 第" + page + "页 - 🔍 检查新页面 - Title: " + newPageTitle);
 
 
                                 }
@@ -249,38 +273,43 @@ public class AlibabaCrawlerService {
 
                             // 再次检查联系方式页面是否出现验证码
                             if (captchaHandler.checkForCaptcha(driver)) {
+                                System.out.println("📄 第" + page + "页 - ⚠️ 联系方式页面检测到验证码，尝试处理...");
                                 if (captchaHandler.handleCaptcha(driver)) {
-                                    break;
+                                    System.out.println("📄 第" + page + "页 - ✅ 联系方式页面验证码处理成功");
+                                } else {
+                                    System.out.println("📄 第" + page + "页 - ❌ 联系方式页面验证码处理失败，跳过此商品");
+                                    continue;
                                 }
                             }
 
 
                             // 7. 在联系方式页面提取数据
+                            System.out.println("📄 第" + page + "页 - 📋 开始提取联系方式信息...");
                             extractContactInfo(driver, info);
 
                             // 提取完成后关闭联系方式页面，切换回详情页
                             driver.close();
                             driver.switchTo().window(currentWindow);
-                            System.out.println("🔄 已关闭联系方式页面，切换回详情页");
+                            System.out.println("📄 第" + page + "页 - 🔄 已关闭联系方式页面，切换回详情页");
 
 
                         } catch (Exception e) {
-                            System.err.println("提取详细信息失败: " + e.getMessage());
+                            System.err.println("📄 第" + page + "页 - ❌ 提取详细信息失败: " + e.getMessage());
                         }
 
                         // 安全地清理剩余的新标签页，确保主窗口不被关闭
-                        System.out.println("🔄 安全清理剩余的新标签页...");
+                        System.out.println("📄 第" + page + "页 - 🔄 安全清理剩余的新标签页...");
 
                         try {
                             // 获取当前所有窗口句柄
                             java.util.Set<String> allWindowHandles = driver.getWindowHandles();
-                            System.out.println("📊 当前窗口数量: " + allWindowHandles.size());
+                            System.out.println("📄 第" + page + "页 - 📊 当前窗口数量: " + allWindowHandles.size());
 
                             // 如果窗口数量大于1，说明还有其他窗口需要关闭
                             if (allWindowHandles.size() > 1) {
                                 // 先确保当前在主窗口
                                 driver.switchTo().window(mainWindow);
-                                System.out.println("🏠 已切换到主窗口");
+                                System.out.println("📄 第" + page + "页 - 🏠 已切换到主窗口");
 
                                 // 重新获取窗口句柄列表
                                 allWindowHandles = driver.getWindowHandles();
@@ -296,81 +325,79 @@ public class AlibabaCrawlerService {
                                             } catch (Exception titleEx) {
                                                 pageTitle = "无法获取标题";
                                             }
-                                            System.out.println("🔄 关闭剩余标签页: " + pageTitle);
+                                            System.out.println("📄 第" + page + "页 - 🔄 关闭剩余标签页: " + pageTitle);
                                             driver.close();
                                         } catch (Exception e) {
-                                            System.err.println("❌ 关闭剩余标签页失败: " + e.getMessage());
+                                            System.err.println("📄 第" + page + "页 - ❌ 关闭剩余标签页失败: " + e.getMessage());
                                         }
                                     }
                                 }
 
                                 // 最后确保切换回主窗口
                                 driver.switchTo().window(mainWindow);
-                                System.out.println("✅ 已确保切换回主窗口");
+                                System.out.println("📄 第" + page + "页 - ✅ 已确保切换回主窗口");
                             } else {
-                                System.out.println("✅ 当前只有主窗口，无需清理");
+                                System.out.println("📄 第" + page + "页 - ✅ 当前只有主窗口，无需清理");
                             }
 
                             // 验证主窗口是否仍然有效
                             try {
                                 String mainTitle = driver.getTitle();
-                                System.out.println("✅ 主窗口验证成功: " + mainTitle);
+                                System.out.println("📄 第" + page + "页 - ✅ 主窗口验证成功: " + mainTitle);
                             } catch (Exception e) {
-                                System.err.println("❌ 主窗口验证失败: " + e.getMessage());
+                                System.err.println("📄 第" + page + "页 - ❌ 主窗口验证失败: " + e.getMessage());
                                 // 不要重新抛出异常，继续处理下一个商品
                                 // throw e; // 注释掉这行，防止循环中断
                             }
 
                         } catch (Exception e) {
-                            System.err.println("❌ 窗口清理过程出错: " + e.getMessage());
+                            System.err.println("📄 第" + page + "页 - ❌ 窗口清理过程出错: " + e.getMessage());
                             // 不要重新抛出异常，继续处理下一个商品
                         }
 
-                        // 即使没有成功进入详情页，也保存基本信息
-                        manufacturerInfos.add(info);
-                        // 在每成功提取一个商品后，仅打印商品名、页码、累计商品数
-                        // 例如：System.out.println("商品: " + info.getProductTitle() + " | 页码: " + info.getPageNumber() + " | 累计: " + manufacturerInfos.size());
-                        // 其它日志全部删除
+                        // 注意：这里不需要重复添加，因为已经在前面添加过了
+                        // manufacturerInfos.add(info); // 注释掉，避免重复添加
+                        
+                        // 打印商品处理进度
+                        System.out.println("📄 第" + page + "页 - ✅ 商品处理完成: " + info.getProductTitle() + " | 页码: " + info.getPageNumber() + " | 累计: " + manufacturerInfos.size());
 
                         // 防止被封，随机等待 - 增加等待时间
                         antiDetectionService.randomWait(5000, 12000);
 
-                        // 每爬取完一个商品后，立即写入Excel并打印日志
-                        boolean exportSuccess = excelExportService.appendToDefaultPath(info);
-                        if (exportSuccess) {
-                            System.out.println("✅ 已成功导出商品信息到Excel");
-                            System.out.println("📄 文件名: " + excelExportService.getCurrentFileName());
-                            System.out.println("📁 文件目录: " + excelExportService.getExportDirectory());
-                        } else {
-                            System.err.println("❌ 导出Excel失败");
-                        }
-
-                        // 增加实际处理计数
-                        processedItemsOnPage++;
+                        // 注意：Excel已经在前面写入过了，这里不需要重复写入
+                        // 只打印进度信息
+                        System.out.println("📄 第" + page + "页 - 📊 当前页面进度: " + processedItemsOnPage + "/" + totalItemsOnPage + " 个商品");
 
                         // 打印循环进度信息
-                        System.out.println("🔄 完成第 " + (i + 1) + " 个商品，继续处理下一个商品...");
-                        System.out.println("📊 已处理: " + processedItemsOnPage + "/" + totalItemsOnPage + " 个商品，累计数据: " + manufacturerInfos.size() + " 条");
+                        System.out.println("📄 第" + page + "页 - 🔄 完成第 " + (i + 1) + " 个商品，继续处理下一个商品...");
+                        System.out.println("📄 第" + page + "页 - 📊 已处理: " + processedItemsOnPage + "/" + totalItemsOnPage + " 个商品，累计数据: " + manufacturerInfos.size() + " 条");
 
                     } catch (Exception e) {
-                        System.err.println("处理第 " + (i + 1) + " 个商品时出错: " + e.getMessage());
+                        System.err.println("📄 第" + page + "页 - ❌ 处理第 " + (i + 1) + " 个商品时出错: " + e.getMessage());
                         e.printStackTrace(); // 打印完整的异常堆栈，便于调试
-                        System.out.println("⚠️ 跳过第 " + (i + 1) + " 个商品，继续处理下一个...");
+                        System.out.println("📄 第" + page + "页 - ⚠️ 跳过第 " + (i + 1) + " 个商品，继续处理下一个...");
                         continue;
                     }
                 }
 
-                System.out.println("📝 第 " + page + " 页处理完成，共找到 " + totalItemsOnPage + " 个商品，成功处理 " + processedItemsOnPage + " 个");
-
-                // 尝试翻页 - 使用您提供的XPath
-                if (page < maxPages) {
-                    System.out.println("🔄 准备翻到第 " + (page + 1) + " 页...");
-                    if (!tryNextPage(driver, wait)) {
-                        System.out.println("没有更多页面了");
-                        break;
+                System.out.println("📄 ========== 第 " + page + " 页处理完成 ==========");
+                System.out.println("📄 第" + page + "页 - 📝 共找到 " + totalItemsOnPage + " 个商品，成功处理 " + processedItemsOnPage + " 个");
+                
+                // 只有当当前页面所有商品都处理完才翻页
+                if (processedItemsOnPage > 0) {
+                    // 尝试翻页 - 使用您提供的XPath
+                    if (page < maxPages) {
+                        System.out.println("📄 第" + page + "页 - 🔄 准备翻到第 " + (page + 1) + " 页...");
+                        if (!tryNextPage(driver, wait)) {
+                            System.out.println("📄 第" + page + "页 - ⚠️ 没有更多页面了");
+                            break;
+                        }
+                    } else {
+                        System.out.println("📄 第" + page + "页 - ✅ 已达到最大页数限制: " + maxPages);
                     }
                 } else {
-                    System.out.println("✅ 已达到最大页数限制: " + maxPages);
+                    System.out.println("📄 第" + page + "页 - ⚠️ 没有成功处理任何商品，跳过翻页");
+                    break;
                 }
             }
         } catch (Exception e) {
