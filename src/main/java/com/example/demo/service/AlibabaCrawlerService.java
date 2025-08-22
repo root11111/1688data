@@ -12,6 +12,7 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -111,6 +112,36 @@ public class AlibabaCrawlerService {
             System.out.println("⏳ 等待页面加载...");
             wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]")));
 
+            // 🆕 检查主页面是否出现验证码
+            if (captchaHandler.checkForCaptcha(driver)) {
+                System.out.println("📄 主页面检测到验证码，尝试处理...");
+                CaptchaHandlerService.CaptchaResult result = captchaHandler.handleCaptcha(driver);
+                if (result == CaptchaHandlerService.CaptchaResult.SUCCESS) {
+                    System.out.println("📄 主页面验证码处理成功，继续...");
+                } else if (result == CaptchaHandlerService.CaptchaResult.FAILED) {
+                    System.err.println("📄 主页面验证码处理失败，需要重新加载页面...");
+                    // 🆕 验证码处理失败，重新加载主页面
+                    driver.navigate().refresh();
+                    antiDetectionService.randomWait(3000, 5000);
+                    // 重新执行反检测和人类行为模拟
+                    antiDetectionService.executeAntiDetectionScripts(driver);
+                    antiDetectionService.simulateHumanBehavior(driver);
+                    scrollPage(driver);
+                    // 重新检查验证码
+                    if (captchaHandler.checkForCaptcha(driver)) {
+                        System.err.println("📄 重新加载后仍有验证码，尝试再次处理...");
+                        result = captchaHandler.handleCaptcha(driver);
+                        if (result == CaptchaHandlerService.CaptchaResult.BLOCKED) {
+                            System.err.println("📄 主页面验证码被阻止，爬取终止");
+                            return manufacturerInfos;
+                        }
+                    }
+                } else {
+                    System.err.println("📄 主页面验证码被阻止，爬取终止");
+                    return manufacturerInfos;
+                }
+            }
+
             // 模拟人类行为
             System.out.println("🤖 模拟人类行为...");
             antiDetectionService.simulateHumanBehavior(driver);
@@ -119,49 +150,197 @@ public class AlibabaCrawlerService {
             System.out.println("⏰ 随机等待...");
             antiDetectionService.randomWait(2000, 5000);
 
-            // 2. 循环翻页（支持断点续传）
+            // 🆕 修复断点续传逻辑：在开始循环前，先检查是否需要直接导航到断点页面
             System.out.println("🔄 断点续传信息:");
             System.out.println("   - 起始页: " + progress.getCurrentPage());
             System.out.println("   - 起始项索引: " + progress.getCurrentItemIndex());
             System.out.println("   - 最大页数: " + maxPages);
             System.out.println("   - 任务ID: " + taskId);
+            System.out.println("🔄 断点续传逻辑:");
+            System.out.println("   - 循环将从第" + progress.getCurrentPage() + "页开始");
+            
+                         // 🆕 修复断点续传逻辑：如果起始页 > 1，需要从第1页逐页点击到目标页
+             if (progress.getCurrentPage() > 1) {
+                 System.out.println("🔄 断点续传：起始页 > 1，需要从第1页逐页点击到第" + progress.getCurrentPage() + "页");
+                 
+                 // 从第1页开始，逐页点击到目标页
+                 for (int targetPage = 2; targetPage <= progress.getCurrentPage(); targetPage++) {
+                     System.out.println("🔄 准备点击到第" + targetPage + "页...");
+                     
+                     // 等待页面加载完成
+                     antiDetectionService.randomWait(2000, 3000);
+                     
+                     // 查找并点击下一页按钮
+                     try {
+                         WebElement nextPageButton = driver.findElement(By.xpath("//BUTTON[contains(@class,'next-btn next-btn-normal next-btn-large next-pagination-item next')]"));
+                         if (nextPageButton != null && nextPageButton.isEnabled()) {
+                             System.out.println("🔄 找到下一页按钮，点击...");
+                             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", nextPageButton);
+                             
+                             // 等待新页面加载
+                             System.out.println("⏳ 等待第" + targetPage + "页加载...");
+                             antiDetectionService.randomWait(3000, 5000);
+                             
+                             // 等待商品列表加载完成
+                             try {
+                                 wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]")));
+                                 System.out.println("✅ 第" + targetPage + "页商品列表加载完成");
+                             } catch (Exception e) {
+                                 System.out.println("⚠️ 等待第" + targetPage + "页商品列表加载超时，尝试备用选择器...");
+                                 try {
+                                     wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'offer_item')]")));
+                                     System.out.println("✅ 第" + targetPage + "页商品列表加载完成（备用选择器）");
+                                 } catch (Exception e2) {
+                                     System.err.println("❌ 第" + targetPage + "页商品列表加载失败: " + e2.getMessage());
+                                     System.err.println("❌ 无法到达第" + progress.getCurrentPage() + "页，爬取终止");
+                                     return manufacturerInfos;
+                                 }
+                             }
+                             
+                             // 验证页面确实有数据
+                             List<WebElement> items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
+                             if (items.size() == 0) {
+                                 items = driver.findElements(By.xpath("//div[contains(@class, 'offer_item')]"));
+                             }
+                             
+                             if (items.size() > 0) {
+                                 System.out.println("✅ 第" + targetPage + "页验证成功，找到 " + items.size() + " 个商品");
+                             } else {
+                                 System.err.println("❌ 第" + targetPage + "页没有商品，翻页失败");
+                                 System.err.println("❌ 无法到达第" + progress.getCurrentPage() + "页，爬取终止");
+                                 return manufacturerInfos;
+                             }
+                             
+                             // 如果不是最后一页，执行页面初始化流程
+                             if (targetPage < progress.getCurrentPage()) {
+                                 System.out.println("🔄 第" + targetPage + "页不是目标页，执行页面初始化流程...");
+                                 
+                                 // 1. 执行反检测脚本
+                                 System.out.println("🔧 执行反检测脚本...");
+                                 antiDetectionService.executeAntiDetectionScripts(driver);
+                                 
+                                 // 2. 模拟人类行为
+                                 System.out.println("🤖 模拟人类行为...");
+                                 antiDetectionService.simulateHumanBehavior(driver);
+                                 
+                                 // 3. 随机等待
+                                 System.out.println("⏰ 随机等待...");
+                                 antiDetectionService.randomWait(2000, 4000);
+                                 
+                                 // 4. 滚动页面
+                                 System.out.println("📜 开始滚动页面...");
+                                 scrollPage(driver);
+                                 System.out.println("✅ 页面滚动完成");
+                             }
+                             
+                         } else {
+                             System.err.println("❌ 下一页按钮不可用，无法继续翻页");
+                             System.err.println("❌ 无法到达第" + progress.getCurrentPage() + "页，爬取终止");
+                             return manufacturerInfos;
+                         }
+                     } catch (Exception e) {
+                         System.err.println("❌ 点击下一页按钮失败: " + e.getMessage());
+                         System.err.println("❌ 无法到达第" + progress.getCurrentPage() + "页，爬取终止");
+                         return manufacturerInfos;
+                     }
+                 }
+                 
+                 System.out.println("🎯 断点续传：已成功逐页点击到第" + progress.getCurrentPage() + "页，准备开始处理");
+                 
+                 // 到达目标页后，执行完整的页面初始化流程
+                 System.out.println("🔄 开始执行目标页初始化流程...");
+                 
+                 // 1. 执行反检测脚本
+                 System.out.println("🔧 执行反检测脚本...");
+                 antiDetectionService.executeAntiDetectionScripts(driver);
+                 
+                 // 2. 模拟人类行为
+                 System.out.println("🤖 模拟人类行为...");
+                 antiDetectionService.simulateHumanBehavior(driver);
+                 
+                 // 3. 随机等待
+                 System.out.println("⏰ 随机等待...");
+                 antiDetectionService.randomWait(2000, 5000);
+                 
+                 // 4. 滚动页面到底部
+                 System.out.println("📜 开始滚动页面到底部...");
+                 scrollPage(driver);
+                 System.out.println("✅ 页面滚动完成");
+                 
+                 System.out.println("🎯 目标页初始化流程完成！");
+                 
+             } else {
+                 System.out.println("🔄 从第1页开始，无需翻页");
+             }
+            
+            System.out.println("🔄 断点续传详情:");
+            System.out.println("   - 任务表进度: 第" + startPage + "页，第" + startItemIndex + "项");
+            System.out.println("   - 进度表进度: 第" + (existingProgress.isPresent() ? existingProgress.get().getCurrentPage() : "N/A") + "页，第" + (existingProgress.isPresent() ? existingProgress.get().getCurrentItemIndex() : "N/A") + "项");
+            System.out.println("   - 最终使用进度: 第" + progress.getCurrentPage() + "页，第" + progress.getCurrentItemIndex() + "项");
             
             for (int page = progress.getCurrentPage(); page <= maxPages; page++) {
                 System.out.println("📄 ========== 开始处理第 " + page + " 页 ==========");
                 
-                // 如果要从第2页或之后的页面开始，需要先翻页到指定页面
-                if (page > 1) {
-                    System.out.println("🔄 需要从第" + page + "页开始，先翻页到指定页面...");
-                    System.out.println("🔄 当前浏览器实际在第1页，需要翻页到第" + page + "页");
-                    
-                    if (!navigateToPage(driver, wait, page)) {
-                        System.err.println("❌ 无法翻页到第" + page + "页，爬取终止");
-                        break;
-                    }
-                    System.out.println("✅ 已成功翻页到第" + page + "页");
-                }
+                                 // 🆕 简化逻辑：断点导航已在外层处理，这里只需要处理正常翻页
+                 if (page > 1 && page > progress.getCurrentPage()) {
+                     System.out.println("🔄 需要从第" + page + "页开始，先翻页到指定页面...");
+                     
+                     // 使用点击下一页按钮的方式翻页到目标页面
+                     if (!navigateToPageByClicking(driver, wait, page)) {
+                         System.err.println("❌ 无法翻页到第" + page + "页，爬取终止");
+                         break;
+                     }
+                     
+                     // 🆕 修复：翻页成功后，更新进度到当前页，但保持商品索引（支持断点续传）
+                     progress.setCurrentPage(page); // 更新到当前页
+                     System.out.println("🔄 翻页成功后，保持断点续传商品索引: " + progress.getCurrentItemIndex());
+                     // 🆕 使用统一方法同步更新两个表
+                     updateProgressPublic(progress, page, progress.getCurrentItemIndex(), "IN_PROGRESS");
+                 }
                 
-                // 更新进度状态
+                // 🆕 修复：页面开始处理时，更新状态和页码，但保留商品索引（支持断点续传）
                 progress.setStatus("IN_PROGRESS");
                 progress.setCurrentPage(page);
-                crawlProgressService.updateProgress(progress.getId(), page, progress.getCurrentItemIndex(), "IN_PROGRESS");
-                
-                // 同步更新任务表的进度信息
-                try {
-                    if (progress.getTaskId() != null) {
-                        crawlTaskService.updateTaskProgress(progress.getTaskId(), page, progress.getCurrentItemIndex());
-                    } else {
-                        System.out.println("📄 第" + page + "页 - ⚠️ 进度记录没有关联任务ID，跳过任务表更新");
+                // 注意：不要重置商品索引，保持断点续传的状态
+                // progress.setCurrentItemIndex(0); // 删除这行，避免覆盖断点续传的商品索引
+                // 🆕 使用统一方法同步更新两个表
+                updateProgressPublic(progress, page, progress.getCurrentItemIndex(), "IN_PROGRESS");
+
+                            // 🆕 检查当前页面是否出现验证码
+            if (captchaHandler.checkForCaptcha(driver)) {
+                System.out.println("📄 页面内检测到验证码，尝试处理...");
+                CaptchaHandlerService.CaptchaResult result = captchaHandler.handleCaptcha(driver);
+                if (result == CaptchaHandlerService.CaptchaResult.SUCCESS) {
+                    System.out.println("📄 页面内验证码处理成功，继续...");
+                } else if (result == CaptchaHandlerService.CaptchaResult.FAILED) {
+                    System.err.println("📄 页面内验证码处理失败，需要重新加载页面...");
+                    // 🆕 验证码处理失败，重新加载当前页面
+                    driver.navigate().refresh();
+                    antiDetectionService.randomWait(3000, 5000);
+                    // 重新执行反检测和人类行为模拟
+                    antiDetectionService.executeAntiDetectionScripts(driver);
+                    antiDetectionService.simulateHumanBehavior(driver);
+                    scrollPage(driver);
+                    // 重新检查验证码
+                    if (captchaHandler.checkForCaptcha(driver)) {
+                        System.err.println("📄 重新加载后仍有验证码，尝试再次处理...");
+                        result = captchaHandler.handleCaptcha(driver);
+                        if (result == CaptchaHandlerService.CaptchaResult.BLOCKED) {
+                            System.err.println("📄 页面内验证码被阻止，跳过当前页面");
+                            break; // 跳过当前页面，继续下一页
+                        }
                     }
-                } catch (Exception e) {
-                    System.err.println("⚠️ 更新任务表进度失败: " + e.getMessage());
+                } else {
+                    System.err.println("📄 页面内验证码被阻止，跳过当前页面");
+                    break; // 跳过当前页面，继续下一页
                 }
+            }
 
-                // 3. 滚动网页
-                System.out.println("📄 第" + page + "页 - 开始滚动页面...");
-                scrollPage(driver);
+            // 3. 滚动网页
+            System.out.println("📄 第" + page + "页 - 开始滚动页面...");
+            scrollPage(driver);
 
-                // 4. 获取商品列表 - 使用八爪鱼的方式：不固定元素列表，动态获取
+            // 4. 获取商品列表 - 使用八爪鱼的方式：不固定元素列表，动态获取
                 List<WebElement> items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
                 int totalItemsOnPage = items.size(); // 保存原始商品数量
                 int processedItemsOnPage = 0; // 实际处理的商品数量
@@ -175,26 +354,43 @@ public class AlibabaCrawlerService {
                     System.out.println("📄 第" + page + "页 - 🔍 使用备用选择器找到 " + totalItemsOnPage + " 个商品");
                 }
 
-                // 确定开始处理的商品索引（支持断点续传）
-                int startIndex = (page == progress.getCurrentPage()) ? progress.getCurrentItemIndex() : 0;
+                // 🆕 修复：确定开始处理的商品索引（支持断点续传）
+                // 如果是断点续传的第一页，从上次中断的商品索引开始；否则从0开始
+                int startIndex;
+                System.out.println("🔍 断点续传判断:");
+                System.out.println("   - 当前页码: " + page);
+                System.out.println("   - 进度表页码: " + progress.getCurrentPage());
+                System.out.println("   - 进度表商品索引: " + progress.getCurrentItemIndex());
+                System.out.println("   - 条件1 (page == progress.getCurrentPage()): " + (page == progress.getCurrentPage()));
+                System.out.println("   - 条件2 (progress.getCurrentItemIndex() > 0): " + (progress.getCurrentItemIndex() > 0));
+                
+                if (page == progress.getCurrentPage() && progress.getCurrentItemIndex() > 0) {
+                    // 断点续传：从上次中断的商品索引开始
+                    startIndex = progress.getCurrentItemIndex();
+                    System.out.println("📄 第" + page + "页 - 🔄 断点续传：从第" + (startIndex + 1) + "个商品开始");
+                } else {
+                    // 新页面：从第一个商品开始
+                    startIndex = 0;
+                    System.out.println("📄 第" + page + "页 - 🆕 新页面：从第1个商品开始");
+                }
                 System.out.println("📄 第" + page + "页 - 🔍 开始处理，起始索引: " + startIndex + "，商品总数: " + items.size());
                 
                 for (int i = startIndex; i < items.size(); i++) {
                     try {
-                        // 更新当前处理的商品索引
+                        // 🆕 修复：更新当前处理的商品索引，使用正确的页码
                         progress.setCurrentItemIndex(i);
-                        crawlProgressService.updateProgress(progress.getId(), page, i, "IN_PROGRESS");
+                        progress.setCurrentPage(page); // 确保页码正确
                         
-                        // 同步更新任务表的进度信息
-                        try {
-                            if (progress.getTaskId() != null) {
-                                crawlTaskService.updateTaskProgress(progress.getTaskId(), page, i);
-                            } else {
-                                System.out.println("📄 第" + page + "页 - ⚠️ 进度记录没有关联任务ID，跳过任务表更新");
-                            }
-                        } catch (Exception e) {
-                            System.err.println("⚠️ 更新任务表进度失败: " + e.getMessage());
-                        }
+                        // 🆕 添加调试信息
+                        System.out.println("🔄 准备调用 updateProgressPublic:");
+                        System.out.println("   - 进度对象ID: " + progress.getId());
+                        System.out.println("   - 页码: " + page);
+                        System.out.println("   - 项索引: " + i);
+                        System.out.println("   - 进度对象页码: " + progress.getCurrentPage());
+                        System.out.println("   - 进度对象项索引: " + progress.getCurrentItemIndex());
+                        
+                        // 🆕 使用统一方法同步更新两个表
+                        updateProgressPublic(progress, page, i, "IN_PROGRESS");
                         
                         System.out.println("📄 第" + page + "页 - 🎯 开始处理第 " + (i + 1) + " 个商品...");
                         
@@ -204,8 +400,8 @@ public class AlibabaCrawlerService {
                         } catch (Exception sessionEx) {
                             System.err.println("📄 第" + page + "页 - ❌ WebDriver会话已失效: " + sessionEx.getMessage());
                             System.err.println("📄 第" + page + "页 - ❌ 爬取终止，请重启程序");
-                            // 保存当前进度
-                            crawlProgressService.updateProgress(progress.getId(), page, i, "FAILED");
+                            // 🆕 使用统一方法同步更新两个表
+                            updateProgressPublic(progress, page, i, "FAILED");
                             return manufacturerInfos; // 直接返回已获取的数据
                         }
 
@@ -300,12 +496,52 @@ public class AlibabaCrawlerService {
 
                         // 再次检查联系方式页面是否出现验证码
                         if (captchaHandler.checkForCaptcha(driver)) {
-                            System.out.println("📄 第" + page + "页 - ⚠️ 检测到验证码，尝试处理...");
-                            if (captchaHandler.handleCaptcha(driver)) {
-                                System.out.println("📄 第" + page + "页 - ✅ 验证码处理成功，继续...");
+                            System.out.println("📄 联系方式页面检测到验证码，尝试处理...");
+                            CaptchaHandlerService.CaptchaResult result = captchaHandler.handleCaptcha(driver);
+                            if (result == CaptchaHandlerService.CaptchaResult.SUCCESS) {
+                                System.out.println("📄 联系方式页面验证码处理成功，继续...");
+                            } else if (result == CaptchaHandlerService.CaptchaResult.FAILED) {
+                                System.err.println("📄 联系方式页面验证码处理失败，需要重新爬取当前商品...");
+                                // 🆕 验证码处理失败，回到主页面重新爬取当前商品
+                                driver.navigate().back();
+                                antiDetectionService.randomWait(2000, 3000);
+                                
+                                // 重新进入商品详情页
+                                try {
+                                    WebElement productLink = driver.findElement(By.xpath("//a[contains(@href, 'offer') and contains(@href, '.html')]"));
+                                    if (productLink != null) {
+                                        System.out.println("🔄 重新进入商品详情页...");
+                                        productLink.click();
+                                        antiDetectionService.randomWait(3000, 5000);
+                                        
+                                        // 重新执行反检测和人类行为模拟
+                                        antiDetectionService.executeAntiDetectionScripts(driver);
+                                        antiDetectionService.simulateHumanBehavior(driver);
+                                        scrollPage(driver);
+                                        
+                                        // 重新检查验证码
+                                        if (captchaHandler.checkForCaptcha(driver)) {
+                                            System.err.println("📄 重新进入后仍有验证码，尝试再次处理...");
+                                            result = captchaHandler.handleCaptcha(driver);
+                                            if (result == CaptchaHandlerService.CaptchaResult.BLOCKED) {
+                                                System.err.println("📄 重新进入后验证码被阻止，跳过当前商品");
+                                                continue; // 跳过当前商品，继续下一个
+                                            }
+                                        }
+                                        
+                                        // 重新提取联系方式信息
+                                        extractContactInfo(driver, info);
+                                    } else {
+                                        System.err.println("❌ 无法找到商品链接，跳过当前商品");
+                                        continue;
+                                    }
+                                } catch (Exception e) {
+                                    System.err.println("❌ 重新进入商品详情页失败: " + e.getMessage());
+                                    continue;
+                                }
                             } else {
-                                System.out.println("📄 第" + page + "页 - ❌ 验证码处理失败，跳过此商品");
-                                continue;
+                                System.err.println("📄 联系方式页面验证码被阻止，跳过当前商品");
+                                continue; // 跳过当前商品，继续下一个
                             }
                         }
 
@@ -344,13 +580,53 @@ public class AlibabaCrawlerService {
 
                             // 再次检查联系方式页面是否出现验证码
                             if (captchaHandler.checkForCaptcha(driver)) {
-                                System.out.println("📄 第" + page + "页 - ⚠️ 联系方式页面检测到验证码，尝试处理...");
-                                if (captchaHandler.handleCaptcha(driver)) {
-                                    System.out.println("📄 第" + page + "页 - ✅ 联系方式页面验证码处理成功");
+                                System.out.println("📄 联系方式页面检测到验证码，尝试处理...");
+                                CaptchaHandlerService.CaptchaResult result = captchaHandler.handleCaptcha(driver);
+                                if (result == CaptchaHandlerService.CaptchaResult.SUCCESS) {
+                                    System.out.println("📄 联系方式页面验证码处理成功");
+                                                        } else if (result == CaptchaHandlerService.CaptchaResult.FAILED) {
+                            System.err.println("📄 联系方式页面验证码处理失败，需要重新爬取当前商品...");
+                            // 🆕 验证码处理失败，回到主页面重新爬取当前商品
+                            driver.navigate().back();
+                            antiDetectionService.randomWait(2000, 3000);
+                            
+                            // 重新进入商品详情页
+                            try {
+                                WebElement productLink = driver.findElement(By.xpath("//a[contains(@href, 'offer') and contains(@href, '.html')]"));
+                                if (productLink != null) {
+                                    System.out.println("🔄 重新进入商品详情页...");
+                                    productLink.click();
+                                    antiDetectionService.randomWait(3000, 5000);
+                                    
+                                    // 重新执行反检测和人类行为模拟
+                                    antiDetectionService.executeAntiDetectionScripts(driver);
+                                    antiDetectionService.simulateHumanBehavior(driver);
+                                    scrollPage(driver);
+                                    
+                                    // 重新检查验证码
+                                    if (captchaHandler.checkForCaptcha(driver)) {
+                                        System.err.println("📄 重新进入后仍有验证码，尝试再次处理...");
+                                        result = captchaHandler.handleCaptcha(driver);
+                                        if (result == CaptchaHandlerService.CaptchaResult.BLOCKED) {
+                                            System.err.println("📄 重新进入后验证码被阻止，跳过当前商品");
+                                            continue; // 跳过当前商品，继续下一个
+                                        }
+                                    }
+                                    
+                                    // 重新提取联系方式信息
+                                    extractContactInfo(driver, info);
                                 } else {
-                                    System.out.println("📄 第" + page + "页 - ❌ 联系方式页面验证码处理失败，跳过此商品");
+                                    System.err.println("❌ 无法找到商品链接，跳过当前商品");
                                     continue;
                                 }
+                            } catch (Exception e) {
+                                System.err.println("❌ 重新进入商品详情页失败: " + e.getMessage());
+                                continue;
+                            }
+                        } else {
+                            System.err.println("📄 联系方式页面验证码被阻止，跳过此商品");
+                            continue;
+                        }
                             }
 
 
@@ -368,18 +644,8 @@ public class AlibabaCrawlerService {
                                     // 增加成功处理计数
                                     processedItemsOnPage++;
                                     
-                                                                         // 更新当前商品索引到任务表
-                                     try {
-                                         if (progress.getTaskId() != null) {
-                                             int currentItemIndex = i; // 当前处理的商品索引（从0开始，与循环索引保持一致）
-                                             crawlTaskService.updateTaskProgress(progress.getTaskId(), page + 1, currentItemIndex);
-                                             System.out.println("📄 第" + page + "页 - 📊 已更新任务进度: 第" + (page + 1) + "页，第" + (currentItemIndex + 1) + "项");
-                                         } else {
-                                             System.out.println("📄 第" + page + "页 - ⚠️ 进度记录没有关联任务ID，跳过任务表更新");
-                                         }
-                                     } catch (Exception progressEx) {
-                                         System.err.println("⚠️ 更新任务进度失败: " + progressEx.getMessage());
-                                     }
+                                                                         // 🆕 使用统一方法同步更新两个表
+                                    updateProgressPublic(progress, page, i, "IN_PROGRESS");
                                 } else {
                                     System.err.println("📄 第" + page + "页 - ❌ 联系方式信息更新到数据库失败: " + info.getCompanyName());
                                 }
@@ -484,34 +750,112 @@ public class AlibabaCrawlerService {
                 System.out.println("📄 ========== 第 " + page + " 页处理完成 ==========");
                 System.out.println("📄 第" + page + "页 - 📝 共找到 " + totalItemsOnPage + " 个商品，成功处理 " + processedItemsOnPage + " 个");
                 
+                // 🆕 记录当前页面的URL，用于断点续传
+                String currentPageUrl = driver.getCurrentUrl();
+                progress.setCurrentPageUrl(currentPageUrl);
+                System.out.println("📄 第" + page + "页 - 🔗 记录当前页面URL: " + currentPageUrl);
+                
                 // 只有当当前页面所有商品都处理完才翻页
                 if (processedItemsOnPage > 0) {
-                    // 尝试翻页 - 使用您提供的XPath
-                    if (page < maxPages) {
-                        System.out.println("📄 第" + page + "页 - 🔄 准备翻到第 " + (page + 1) + " 页...");
-                        if (!tryNextPage(driver, wait)) {
-                            System.out.println("📄 第" + page + "页 - ⚠️ 没有更多页面了");
-                            break;
-                        }
-                        
-                        // 翻页成功后，重置商品索引为0，因为新页面从第一个商品开始
-                        progress.setCurrentItemIndex(0);
-                        progress.setCurrentPage(page + 1);
-                        crawlProgressService.updateProgress(progress.getId(), page + 1, 0, "IN_PROGRESS");
-                        
-                                                 // 同步更新任务表的进度信息
-                         try {
-                             if (progress.getTaskId() != null) {
-                                 crawlTaskService.updateTaskProgress(progress.getTaskId(), page + 1, 0);
-                                 System.out.println("📄 第" + (page + 1) + "页 - 📊 已更新任务表进度: 第" + (page + 1) + "页，第0项");
-                             } else {
-                                 System.out.println("📄 第" + (page + 1) + "页 - ⚠️ 进度记录没有关联任务ID，跳过任务表更新");
+                                                             // 🆕 改进翻页逻辑：连续执行时直接点击下一页按钮
+                 if (page < maxPages) {
+                     System.out.println("📄 第" + page + "页 - 🔄 准备点击到第 " + (page + 1) + " 页...");
+                     
+                     // 等待页面加载完成
+                     antiDetectionService.randomWait(2000, 3000);
+                     
+                     // 查找并点击下一页按钮
+                     try {
+                         WebElement nextPageButton = driver.findElement(By.xpath("//BUTTON[contains(@class,'next-btn next-btn-normal next-btn-large next-pagination-item next')]"));
+                         if (nextPageButton != null && nextPageButton.isEnabled()) {
+                             System.out.println("📄 第" + page + "页 - 🖱️ 找到下一页按钮，点击...");
+                             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", nextPageButton);
+                             
+                             // 等待新页面加载
+                             System.out.println("📄 第" + (page + 1) + "页 - ⏳ 等待页面加载...");
+                             antiDetectionService.randomWait(3000, 5000);
+                             
+                             // 等待商品列表加载完成
+                             try {
+                                 wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]")));
+                                 System.out.println("📄 第" + (page + 1) + "页 - ✅ 页面商品列表加载完成");
+                             } catch (Exception e) {
+                                 System.out.println("📄 第" + (page + 1) + "页 - ⚠️ 等待商品列表加载超时，尝试备用选择器...");
+                                 try {
+                                     wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'offer_item')]")));
+                                     System.out.println("📄 第" + (page + 1) + "页 - ✅ 页面商品列表加载完成（备用选择器）");
+                                 } catch (Exception e2) {
+                                     System.err.println("📄 第" + (page + 1) + "页 - ❌ 页面商品列表加载失败: " + e2.getMessage());
+                                     System.out.println("📄 第" + page + "页 - ⚠️ 没有更多页面了");
+                                     break;
+                                 }
                              }
-                         } catch (Exception e) {
-                             System.err.println("⚠️ 翻页后更新任务表进度失败: " + e.getMessage());
+                         } else {
+                             System.err.println("📄 第" + page + "页 - ❌ 下一页按钮不可用，没有更多页面了");
+                             break;
                          }
+                     } catch (Exception e) {
+                         System.err.println("📄 第" + page + "页 - ❌ 点击下一页按钮失败: " + e.getMessage());
+                         System.out.println("📄 第" + page + "页 - ⚠️ 没有更多页面了");
+                         break;
+                     }
+                        
+                        // 🆕 修复翻页后的进度更新逻辑
+                        // 翻页成功后，更新进度到下一页，重置商品索引为0
+                        progress.setCurrentPage(page + 1); // 更新到下一页
+                        progress.setCurrentItemIndex(0); // 重置为0，从第一个商品开始
+                        // 🆕 使用统一方法同步更新两个表
+                        updateProgressPublic(progress, page + 1, 0, "IN_PROGRESS");
                         
                         System.out.println("📄 第" + (page + 1) + "页 - 🔄 翻页成功，重置商品索引为0");
+                        
+                                                 // 🆕 翻页后像刚启动任务一样，重新执行所有必要操作
+                         System.out.println("📄 第" + (page + 1) + "页 - 🔄 翻页成功，开始执行新页面初始化流程...");
+                         
+                         // 1. 等待新页面完全加载
+                         System.out.println("📄 第" + (page + 1) + "页 - ⏳ 等待新页面完全加载...");
+                         antiDetectionService.randomWait(3000, 5000);
+                         
+                         // 🆕 检查新页面是否出现验证码
+                         if (captchaHandler.checkForCaptcha(driver)) {
+                             System.out.println("📄 第" + (page + 1) + "页 - ⚠️ 新页面检测到验证码，尝试处理...");
+                             CaptchaHandlerService.CaptchaResult result = captchaHandler.handleCaptcha(driver);
+                             if (result == CaptchaHandlerService.CaptchaResult.SUCCESS) {
+                                 System.out.println("📄 第" + (page + 1) + "页 - ✅ 新页面验证码处理成功，继续...");
+                             } else if (result == CaptchaHandlerService.CaptchaResult.FAILED) {
+                                 System.err.println("📄 第" + (page + 1) + "页 - ⚠️ 新页面验证码处理失败，但继续处理此页面...");
+                             } else {
+                                 System.err.println("📄 第" + (page + 1) + "页 - ❌ 新页面验证码被阻止，跳过此页面");
+                                 break;
+                             }
+                         }
+                         
+                         // 2. 执行反检测脚本（防止被检测）
+                         System.out.println("📄 第" + (page + 1) + "页 - 🔧 执行反检测脚本...");
+                         antiDetectionService.executeAntiDetectionScripts(driver);
+                         
+                         // 3. 模拟人类行为（随机移动鼠标、滚动等）
+                         System.out.println("📄 第" + (page + 1) + "页 - 🤖 模拟人类行为...");
+                         antiDetectionService.simulateHumanBehavior(driver);
+                         
+                         // 4. 随机等待，模拟人类行为
+                         System.out.println("📄 第" + (page + 1) + "页 - ⏰ 随机等待...");
+                         antiDetectionService.randomWait(2000, 5000);
+                         
+                         // 5. 滚动页面到底部，确保所有商品都加载完成
+                         System.out.println("📄 第" + (page + 1) + "页 - 📜 开始滚动新页面到底部...");
+                         scrollPage(driver);
+                         System.out.println("📄 第" + (page + 1) + "页 - ✅ 新页面滚动完成");
+                         
+                         // 6. 验证新页面商品列表
+                         System.out.println("📄 第" + (page + 1) + "页 - 🔍 验证新页面商品列表...");
+                         List<WebElement> newPageItems = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
+                         if (newPageItems.size() == 0) {
+                             newPageItems = driver.findElements(By.xpath("//div[contains(@class, 'offer_item')]"));
+                         }
+                         System.out.println("📄 第" + (page + 1) + "页 - ✅ 新页面验证成功，找到 " + newPageItems.size() + " 个商品");
+                         
+                         System.out.println("📄 第" + (page + 1) + "页 - 🎯 新页面初始化流程完成，准备开始处理商品...");
                     } else {
                         System.out.println("📄 第" + page + "页 - ✅ 已达到最大页数限制: " + maxPages);
                     }
@@ -523,18 +867,18 @@ public class AlibabaCrawlerService {
         } catch (Exception e) {
             System.err.println("爬取过程中出错: " + e.getMessage());
             e.printStackTrace();
-            // 保存异常状态
+            // 🆕 使用统一方法同步更新两个表
             if (progress != null) {
-                crawlProgressService.updateStatus(progress.getId(), "FAILED");
+                updateProgressPublic(progress, progress.getCurrentPage(), progress.getCurrentItemIndex(), "FAILED");
             }
         } finally {
-            // 更新爬取状态
+            // 🆕 使用统一方法同步更新两个表
             if (progress != null) {
                 if (progress.getCurrentPage() >= maxPages) {
-                    crawlProgressService.updateStatus(progress.getId(), "COMPLETED");
+                    updateProgressPublic(progress, progress.getCurrentPage(), progress.getCurrentItemIndex(), "COMPLETED");
                     System.out.println("🎉 爬取任务完成！");
                 } else {
-                    crawlProgressService.updateStatus(progress.getId(), "IN_PROGRESS");
+                    updateProgressPublic(progress, progress.getCurrentPage(), progress.getCurrentItemIndex(), "IN_PROGRESS");
                     System.out.println("⏸️ 爬取任务暂停，下次可从断点继续");
                 }
             }
@@ -992,47 +1336,212 @@ public class AlibabaCrawlerService {
         }
     }
     
-    /**
-     * 翻页到指定页面
-     */
-    private boolean navigateToPage(WebDriver driver, WebDriverWait wait, int targetPage) {
+         /**
+      * 🆕 通过点击下一页按钮翻页到指定页面
+      */
+     private boolean navigateToPageByClicking(WebDriver driver, WebDriverWait wait, int targetPage) {
+         try {
+             System.out.println("🔄 开始通过点击翻页到第" + targetPage + "页...");
+             
+             // 获取当前页面URL
+             String currentUrl = driver.getCurrentUrl();
+             System.out.println("🔄 当前页面URL: " + currentUrl);
+             
+             // 通过点击下一页按钮逐页翻到目标页
+             for (int currentPage = 1; currentPage < targetPage; currentPage++) {
+                 System.out.println("🔄 当前在第" + currentPage + "页，准备点击到第" + (currentPage + 1) + "页...");
+                 
+                 // 等待页面加载完成
+                 antiDetectionService.randomWait(2000, 3000);
+                 
+                 // 查找并点击下一页按钮
+                 try {
+                     WebElement nextPageButton = driver.findElement(By.xpath("//BUTTON[contains(@class,'next-btn next-btn-normal next-btn-large next-pagination-item next')]"));
+                     if (nextPageButton != null && nextPageButton.isEnabled()) {
+                         System.out.println("🔄 找到下一页按钮，点击...");
+                         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", nextPageButton);
+                         
+                         // 等待新页面加载
+                         System.out.println("⏳ 等待第" + (currentPage + 1) + "页加载...");
+                         antiDetectionService.randomWait(3000, 5000);
+                         
+                         // 等待商品列表加载完成
+                         try {
+                             wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]")));
+                             System.out.println("✅ 第" + (currentPage + 1) + "页商品列表加载完成");
+                         } catch (Exception e) {
+                             System.out.println("⚠️ 等待第" + (currentPage + 1) + "页商品列表加载超时，尝试备用选择器...");
+                             try {
+                                 wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'offer_item')]")));
+                                 System.out.println("✅ 第" + (currentPage + 1) + "页商品列表加载完成（备用选择器）");
+                             } catch (Exception e2) {
+                                 System.err.println("❌ 第" + (currentPage + 1) + "页商品列表加载失败: " + e2.getMessage());
+                                 return false;
+                             }
+                         }
+                         
+                         // 验证页面确实有数据
+                         List<WebElement> items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
+                         if (items.size() == 0) {
+                             items = driver.findElements(By.xpath("//div[contains(@class, 'offer_item')]"));
+                         }
+                         
+                         if (items.size() > 0) {
+                             System.out.println("✅ 第" + (currentPage + 1) + "页验证成功，找到 " + items.size() + " 个商品");
+                         } else {
+                             System.err.println("❌ 第" + (currentPage + 1) + "页没有商品，翻页失败");
+                             return false;
+                         }
+                         
+                         // 如果不是最后一页，执行页面初始化流程
+                         if (currentPage + 1 < targetPage) {
+                             System.out.println("🔄 第" + (currentPage + 1) + "页不是目标页，执行页面初始化流程...");
+                             
+                             // 1. 执行反检测脚本
+                             System.out.println("🔧 执行反检测脚本...");
+                             antiDetectionService.executeAntiDetectionScripts(driver);
+                             
+                             // 2. 模拟人类行为
+                             System.out.println("🤖 模拟人类行为...");
+                             antiDetectionService.simulateHumanBehavior(driver);
+                             
+                             // 3. 随机等待
+                             System.out.println("⏰ 随机等待...");
+                             antiDetectionService.randomWait(2000, 4000);
+                             
+                             // 4. 滚动页面
+                             System.out.println("📜 开始滚动页面...");
+                             scrollPage(driver);
+                             System.out.println("✅ 页面滚动完成");
+                         }
+                         
+                     } else {
+                         System.err.println("❌ 下一页按钮不可用，无法继续翻页");
+                         return false;
+                     }
+                 } catch (Exception e) {
+                     System.err.println("❌ 点击下一页按钮失败: " + e.getMessage());
+                     return false;
+                 }
+             }
+             
+             System.out.println("🎯 成功通过点击翻页到第" + targetPage + "页！");
+             return true;
+             
+         } catch (Exception e) {
+             System.err.println("❌ 通过点击翻页到第" + targetPage + "页时出错: " + e.getMessage());
+             return false;
+         }
+     }
+     
+     /**
+      * 🆕 改进翻页逻辑：记录每页URL，直接访问而不是连续翻页
+      */
+     private boolean navigateToPage(WebDriver driver, WebDriverWait wait, int targetPage) {
         try {
-            System.out.println("🔄 开始翻页到第" + targetPage + "页...");
+            System.out.println("🔄 开始导航到第" + targetPage + "页...");
             
-            // 获取当前页面的页码信息
-            int currentPage = getCurrentPageNumber(driver);
-            System.out.println("🔄 当前实际在第" + currentPage + "页");
+            // 获取当前页面URL
+            String currentUrl = driver.getCurrentUrl();
+            System.out.println("🔄 当前页面URL: " + currentUrl);
             
-            // 计算需要翻页的次数
-            int pagesToNavigate = targetPage - currentPage;
-            if (pagesToNavigate <= 0) {
-                System.out.println("✅ 已经在第" + currentPage + "页，无需翻页");
+            // 构建目标页面URL
+            String targetUrl = buildPageUrl(currentUrl, targetPage);
+            System.out.println("🔄 目标页面URL: " + targetUrl);
+            
+            if (targetUrl.equals(currentUrl)) {
+                System.out.println("✅ 当前已在目标页面，无需导航");
                 return true;
             }
             
-            System.out.println("🔄 需要翻页 " + pagesToNavigate + " 次才能到达第" + targetPage + "页");
+            // 直接访问目标页面URL
+            System.out.println("🔄 直接访问目标页面URL...");
+            driver.get(targetUrl);
             
-            // 翻页指定次数
-            for (int i = 0; i < pagesToNavigate; i++) {
-                System.out.println("🔄 第" + (i + 1) + "次翻页，目标：第" + (currentPage + i + 1) + "页...");
-                
-                if (!tryNextPage(driver, wait)) {
-                    System.err.println("❌ 第" + (i + 1) + "次翻页失败，无法到达第" + targetPage + "页");
+            // 等待页面加载
+            System.out.println("⏳ 等待页面加载...");
+            antiDetectionService.randomWait(3000, 5000);
+            
+            // 等待商品列表加载完成
+            try {
+                wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]")));
+                System.out.println("✅ 页面商品列表加载完成");
+            } catch (Exception e) {
+                System.out.println("⚠️ 等待商品列表加载超时，尝试备用选择器...");
+                try {
+                    wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath("//div[contains(@class, 'offer_item')]")));
+                    System.out.println("✅ 页面商品列表加载完成（备用选择器）");
+                } catch (Exception e2) {
+                    System.err.println("❌ 页面商品列表加载失败: " + e2.getMessage());
                     return false;
                 }
-                
-                System.out.println("✅ 第" + (i + 1) + "次翻页成功，当前在第" + (currentPage + i + 1) + "页");
-                
-                // 翻页后等待一下，确保页面稳定
-                antiDetectionService.randomWait(2000, 4000);
             }
             
-            System.out.println("🎯 成功翻页到第" + targetPage + "页！");
+            // 🆕 翻页成功后，像刚启动任务一样，重新执行所有必要操作
+            System.out.println("🔄 页面加载成功，开始执行新页面初始化流程...");
+            
+            // 1. 执行反检测脚本（防止被检测）
+            System.out.println("🔧 执行反检测脚本...");
+            antiDetectionService.executeAntiDetectionScripts(driver);
+            
+            // 2. 模拟人类行为（随机移动鼠标、滚动等）
+            System.out.println("🤖 模拟人类行为...");
+            antiDetectionService.simulateHumanBehavior(driver);
+            
+            // 3. 随机等待，模拟人类行为
+            System.out.println("⏰ 随机等待...");
+            antiDetectionService.randomWait(2000, 5000);
+            
+            // 4. 滚动页面到底部，确保所有商品都加载完成
+            System.out.println("📜 开始滚动新页面到底部...");
+            scrollPage(driver);
+            System.out.println("✅ 页面滚动完成");
+            
+            // 5. 验证新页面商品列表
+            System.out.println("🔍 验证新页面商品列表...");
+            List<WebElement> newPageItems = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
+            if (newPageItems.size() == 0) {
+                newPageItems = driver.findElements(By.xpath("//div[contains(@class, 'offer_item')]"));
+            }
+            System.out.println("✅ 新页面验证成功，找到 " + newPageItems.size() + " 个商品");
+            
+            System.out.println("🎯 新页面初始化流程完成！");
+            System.out.println("🎯 成功导航到第" + targetPage + "页！");
             return true;
             
         } catch (Exception e) {
-            System.err.println("❌ 翻页到第" + targetPage + "页时出错: " + e.getMessage());
+            System.err.println("❌ 导航到第" + targetPage + "页时出错: " + e.getMessage());
             return false;
+        }
+    }
+    
+    /**
+     * 🆕 构建指定页面的URL
+     */
+    private String buildPageUrl(String baseUrl, int pageNumber) {
+        try {
+            if (pageNumber <= 1) {
+                // 第1页，移除page参数或设置为1
+                if (baseUrl.contains("page=")) {
+                    return baseUrl.replaceAll("page=\\d+", "page=1");
+                } else {
+                    // 如果没有page参数，添加page=1
+                    String separator = baseUrl.contains("?") ? "&" : "?";
+                    return baseUrl + separator + "page=1";
+                }
+            } else {
+                // 第2页及以后，设置或更新page参数
+                if (baseUrl.contains("page=")) {
+                    return baseUrl.replaceAll("page=\\d+", "page=" + pageNumber);
+                } else {
+                    // 如果没有page参数，添加page参数
+                    String separator = baseUrl.contains("?") ? "&" : "?";
+                    return baseUrl + separator + "page=" + pageNumber;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("❌ 构建页面URL失败: " + e.getMessage());
+            return baseUrl; // 返回原URL作为备选
         }
     }
     
@@ -1041,29 +1550,197 @@ public class AlibabaCrawlerService {
      */
     private int getCurrentPageNumber(WebDriver driver) {
         try {
-            // 尝试从页面元素获取当前页码
-            List<WebElement> pageElements = driver.findElements(By.xpath("//button[contains(@class, 'next-pagination-item') and not(contains(@class, 'next'))]"));
+            System.out.println("🔍 开始检测当前页码...");
             
-            for (WebElement element : pageElements) {
-                try {
-                    String text = element.getText().trim();
-                    if (text.matches("\\d+")) {
-                        int pageNum = Integer.parseInt(text);
-                        System.out.println("🔍 从页面元素检测到当前页码: " + pageNum);
-                        return pageNum;
+            // 方法1：从分页按钮获取当前页码
+            try {
+                List<WebElement> pageElements = driver.findElements(By.xpath("//button[contains(@class, 'next-pagination-item') and not(contains(@class, 'next'))]"));
+                System.out.println("🔍 找到 " + pageElements.size() + " 个分页按钮");
+                
+                for (WebElement element : pageElements) {
+                    try {
+                        String text = element.getText().trim();
+                        System.out.println("🔍 分页按钮文本: '" + text + "'");
+                        if (text.matches("\\d+")) {
+                            int pageNum = Integer.parseInt(text);
+                            System.out.println("🔍 从分页按钮检测到当前页码: " + pageNum);
+                            return pageNum;
+                        }
+                    } catch (Exception e) {
+                        System.out.println("🔍 解析分页按钮文本失败: " + e.getMessage());
                     }
-                } catch (Exception e) {
-                    // 忽略单个元素的错误
                 }
+            } catch (Exception e) {
+                System.out.println("🔍 方法1失败: " + e.getMessage());
             }
             
-            // 如果无法从页面获取，尝试从URL或其他方式推断
-            System.out.println("⚠️ 无法从页面元素获取页码，使用默认值1");
+            // 方法2：从URL参数获取页码
+            try {
+                String currentUrl = driver.getCurrentUrl();
+                System.out.println("🔍 当前URL: " + currentUrl);
+                
+                // 查找URL中的页码参数
+                if (currentUrl.contains("page=")) {
+                    Pattern pattern = Pattern.compile("page=(\\d+)");
+                    Matcher matcher = pattern.matcher(currentUrl);
+                    if (matcher.find()) {
+                        int pageNum = Integer.parseInt(matcher.group(1));
+                        System.out.println("🔍 从URL参数检测到当前页码: " + pageNum);
+                        return pageNum;
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("🔍 方法2失败: " + e.getMessage());
+            }
+            
+            // 方法3：从页面标题或其他元素推断
+            try {
+                String pageTitle = driver.getTitle();
+                System.out.println("🔍 页面标题: " + pageTitle);
+                
+                // 如果标题包含页码信息
+                if (pageTitle.contains("第") && pageTitle.contains("页")) {
+                    Pattern pattern = Pattern.compile("第(\\d+)页");
+                    Matcher matcher = pattern.matcher(pageTitle);
+                    if (matcher.find()) {
+                        int pageNum = Integer.parseInt(matcher.group(1));
+                        System.out.println("🔍 从页面标题检测到当前页码: " + pageNum);
+                        return pageNum;
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("🔍 方法3失败: " + e.getMessage());
+            }
+            
+            // 方法4：从页面内容推断（查找"第X页"文本）
+            try {
+                List<WebElement> pageTextElements = driver.findElements(By.xpath("//*[contains(text(), '第') and contains(text(), '页')]"));
+                for (WebElement element : pageTextElements) {
+                    try {
+                        String text = element.getText().trim();
+                        System.out.println("🔍 找到页面文本: '" + text + "'");
+                        Pattern pattern = Pattern.compile("第(\\d+)页");
+                        Matcher matcher = pattern.matcher(text);
+                        if (matcher.find()) {
+                            int pageNum = Integer.parseInt(matcher.group(1));
+                            System.out.println("🔍 从页面文本检测到当前页码: " + pageNum);
+                            return pageNum;
+                        }
+                    } catch (Exception e) {
+                        // 忽略单个元素的错误
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("🔍 方法4失败: " + e.getMessage());
+            }
+            
+            System.out.println("⚠️ 所有方法都无法检测到页码，使用默认值1");
             return 1;
             
         } catch (Exception e) {
             System.err.println("❌ 获取当前页码失败: " + e.getMessage());
             return 1;
         }
+    }
+    
+    /**
+     * 验证翻页后页面是否真的发生了变化
+     */
+    private boolean verifyPageChanged(WebDriver driver, WebDriverWait wait) {
+        try {
+            // 等待页面加载完成
+            antiDetectionService.randomWait(1000, 2000);
+            
+            // 检查商品列表是否存在
+            List<WebElement> items = driver.findElements(By.xpath("//div[contains(@class, 'new_ui_offer') and contains(@class, 'offer_item')]"));
+            if (items.size() == 0) {
+                // 尝试备用选择器
+                items = driver.findElements(By.xpath("//div[contains(@class, 'offer_item')]"));
+            }
+            
+            if (items.size() > 0) {
+                System.out.println("✅ 翻页验证成功，新页面找到 " + items.size() + " 个商品");
+                return true;
+            } else {
+                System.err.println("❌ 翻页验证失败，新页面没有找到商品");
+                return false;
+            }
+            
+        } catch (Exception e) {
+            System.err.println("❌ 翻页验证过程出错: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * 🆕 统一更新两个表的进度信息，确保同步
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateBothTablesProgress(CrawlProgress progress, int currentPage, int currentItemIndex, String status) {
+        try {
+            System.out.println("🔄 开始同步更新两个表的进度信息...");
+            System.out.println("   - 目标页码: " + currentPage);
+            System.out.println("   - 目标项索引: " + currentItemIndex);
+            System.out.println("   - 目标状态: " + status);
+            System.out.println("   - 进度记录ID: " + progress.getId());
+            System.out.println("   - 任务ID: " + progress.getTaskId());
+            
+            // 🆕 添加服务实例检查
+            if (crawlProgressService == null) {
+                System.err.println("❌ crawlProgressService 为 null！");
+                return;
+            }
+            if (crawlTaskService == null) {
+                System.err.println("❌ crawlTaskService 为 null！");
+                return;
+            }
+            System.out.println("✅ 服务实例检查通过");
+            
+            // 1. 更新进度表
+            System.out.println("📊 更新进度表...");
+            CrawlProgress updatedProgress = crawlProgressService.updateProgress(progress.getId(), currentPage, currentItemIndex, status);
+            if (updatedProgress != null) {
+                System.out.println("✅ 进度表更新成功");
+                System.out.println("   - 更新后页码: " + updatedProgress.getCurrentPage());
+                System.out.println("   - 更新后项索引: " + updatedProgress.getCurrentItemIndex());
+            } else {
+                System.err.println("❌ 进度表更新失败，返回null");
+            }
+            
+            // 2. 同步更新任务表（如果有任务ID）
+            if (progress.getTaskId() != null) {
+                System.out.println("📊 同步更新任务表...");
+                System.out.println("   - 调用 updateTaskProgress(" + progress.getTaskId() + ", " + currentPage + ", " + currentItemIndex + ")");
+                
+                // 🆕 直接调用任务表更新，不进行重试（让事务管理处理）
+                try {
+                    crawlTaskService.updateTaskProgress(progress.getTaskId(), currentPage, currentItemIndex);
+                    System.out.println("✅ 任务表更新调用成功");
+                    
+                } catch (Exception e) {
+                    System.err.println("❌ 任务表更新失败: " + e.getMessage());
+                    e.printStackTrace();
+                    // 🆕 如果任务表更新失败，抛出异常让事务回滚
+                    throw new RuntimeException("任务表更新失败: " + e.getMessage(), e);
+                }
+            } else {
+                System.out.println("⚠️ 进度记录没有关联任务ID，跳过任务表更新");
+            }
+            
+            System.out.println("🎯 两个表进度同步更新完成！");
+            
+        } catch (Exception e) {
+            System.err.println("❌ 同步更新两个表进度失败: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // 重新抛出异常，确保事务回滚
+        }
+    }
+    
+    /**
+     * 🆕 公共方法：调用统一进度更新，确保@Transactional生效
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void updateProgressPublic(CrawlProgress progress, int currentPage, int currentItemIndex, String status) {
+        updateBothTablesProgress(progress, currentPage, currentItemIndex, status);
     }
 }

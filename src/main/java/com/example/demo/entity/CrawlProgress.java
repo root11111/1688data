@@ -14,6 +14,9 @@ public class CrawlProgress {
     @Column(name = "url", nullable = false, length = 1000)
     private String url;
     
+    @Column(name = "current_page_url", length = 1000)
+    private String currentPageUrl; // 🆕 记录当前页面的URL，用于断点续传
+    
     @Column(name = "task_id")
     private Long taskId;
     
@@ -42,6 +45,21 @@ public class CrawlProgress {
     public CrawlProgress() {
         this.createdTime = LocalDateTime.now();
         this.updatedTime = LocalDateTime.now();
+        if (currentPage == null) currentPage = 1;
+        if (currentItemIndex == null) currentItemIndex = 0;
+    }
+    
+    @PrePersist
+    protected void onCreate() {
+        createdTime = LocalDateTime.now();
+        updatedTime = LocalDateTime.now();
+        if (currentPage == null) currentPage = 1;
+        if (currentItemIndex == null) currentItemIndex = 0;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedTime = LocalDateTime.now();
     }
     
     public CrawlProgress(String url, Integer totalPages) {
@@ -68,6 +86,14 @@ public class CrawlProgress {
     
     public void setUrl(String url) {
         this.url = url;
+    }
+    
+    public String getCurrentPageUrl() {
+        return currentPageUrl;
+    }
+    
+    public void setCurrentPageUrl(String currentPageUrl) {
+        this.currentPageUrl = currentPageUrl;
     }
     
     public Long getTaskId() {

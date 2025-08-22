@@ -3,8 +3,10 @@ package com.example.demo.controller;
 import com.example.demo.entity.CrawlTask;
 import com.example.demo.entity.ManufacturerInfo;
 import com.example.demo.service.CrawlTaskService;
+import com.example.demo.service.CrawlProgressService;
 import com.example.demo.service.ManufacturerInfoService;
 import com.example.demo.service.ExcelExportService;
+import com.example.demo.service.AlibabaCrawlerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,10 +29,16 @@ public class CrawlerWebController {
     private CrawlTaskService crawlTaskService;
     
     @Autowired
+    private CrawlProgressService crawlProgressService;
+    
+    @Autowired
     private ManufacturerInfoService manufacturerInfoService;
     
     @Autowired
     private ExcelExportService excelExportService;
+    
+    @Autowired
+    private AlibabaCrawlerService alibabaCrawlerService;
     
     /**
      * 获取爬取任务列表
@@ -284,6 +292,227 @@ public class CrawlerWebController {
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.badRequest().body("导出异常: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 🆕 测试两个表的同步更新
+     */
+    @PostMapping("/tasks/{taskId}/test-sync")
+    public ResponseEntity<?> testSyncUpdate(@PathVariable Long taskId) {
+        try {
+            crawlTaskService.testSyncUpdate(taskId);
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "同步更新测试已执行，请查看控制台日志");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+    
+    /**
+     * 🆕 强制刷新数据库状态
+     */
+    @PostMapping("/tasks/force-refresh")
+    public ResponseEntity<?> forceRefreshDatabase() {
+        try {
+            crawlTaskService.forceRefreshDatabase();
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "数据库状态强制刷新已执行，请查看控制台日志");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+    
+    /**
+     * 🆕 测试数据库连接和表访问
+     */
+    @GetMapping("/test-db")
+    public ResponseEntity<?> testDatabase() {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            
+            // 测试进度表
+            try {
+                var progressList = crawlProgressService.findIncompleteTasks();
+                response.put("progressTable", "✅ 进度表访问正常，找到 " + progressList.size() + " 条记录");
+            } catch (Exception e) {
+                response.put("progressTable", "❌ 进度表访问失败: " + e.getMessage());
+            }
+            
+            // 测试任务表
+            try {
+                var taskList = crawlTaskService.getAllTasks();
+                response.put("taskTable", "✅ 任务表访问正常，找到 " + taskList.size() + " 条记录");
+            } catch (Exception e) {
+                response.put("taskTable", "❌ 任务表访问失败: " + e.getMessage());
+            }
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+    
+    /**
+     * 🆕 测试进度更新方法
+     */
+    @PostMapping("/test-progress-update")
+    public ResponseEntity<?> testProgressUpdate() {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            
+            // 获取第一个进度记录进行测试
+            var progressList = crawlProgressService.findIncompleteTasks();
+            if (progressList.isEmpty()) {
+                response.put("error", "没有找到进度记录进行测试");
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            var progress = progressList.get(0);
+            response.put("testProgress", "测试进度记录ID: " + progress.getId() + ", 当前页码: " + progress.getCurrentPage() + ", 当前项索引: " + progress.getCurrentItemIndex());
+            
+            // 测试更新进度
+            try {
+                var updatedProgress = crawlProgressService.updateProgress(progress.getId(), progress.getCurrentPage() + 1, progress.getCurrentItemIndex() + 1, "TESTING");
+                if (updatedProgress != null) {
+                    response.put("progressUpdate", "✅ 进度更新成功: 页码 " + updatedProgress.getCurrentPage() + ", 项索引 " + updatedProgress.getCurrentItemIndex());
+                } else {
+                    response.put("progressUpdate", "❌ 进度更新失败，返回null");
+                }
+            } catch (Exception e) {
+                response.put("progressUpdate", "❌ 进度更新异常: " + e.getMessage());
+            }
+            
+            // 测试更新任务（如果有任务ID）
+            if (progress.getTaskId() != null) {
+                try {
+                    crawlTaskService.updateTaskProgress(progress.getTaskId(), progress.getCurrentPage() + 1, progress.getCurrentItemIndex() + 1);
+                    response.put("taskUpdate", "✅ 任务更新成功");
+                } catch (Exception e) {
+                    response.put("taskUpdate", "❌ 任务更新异常: " + e.getMessage());
+                }
+            } else {
+                response.put("taskUpdate", "⚠️ 进度记录没有关联任务ID，跳过任务更新测试");
+            }
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+    
+    /**
+     * 🆕 测试统一进度更新方法
+     */
+    @PostMapping("/test-unified-update")
+    public ResponseEntity<?> testUnifiedUpdate() {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            
+            // 获取第一个进度记录进行测试
+            var progressList = crawlProgressService.findIncompleteTasks();
+            if (progressList.isEmpty()) {
+                response.put("error", "没有找到进度记录进行测试");
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            var progress = progressList.get(0);
+            response.put("testProgress", "测试进度记录ID: " + progress.getId() + ", 当前页码: " + progress.getCurrentPage() + ", 当前项索引: " + progress.getCurrentItemIndex());
+            
+            // 测试统一更新方法
+            try {
+                alibabaCrawlerService.updateProgressPublic(progress, progress.getCurrentPage() + 1, progress.getCurrentItemIndex() + 1, "TESTING");
+                response.put("unifiedUpdate", "✅ 统一更新方法调用成功");
+            } catch (Exception e) {
+                response.put("unifiedUpdate", "❌ 统一更新测试异常: " + e.getMessage());
+                e.printStackTrace();
+            }
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+    
+    /**
+     * 🆕 测试任务进度更新方法
+     */
+    @PostMapping("/test-task-update")
+    public ResponseEntity<?> testTaskUpdate() {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            
+            // 获取第一个任务进行测试
+            var taskList = crawlTaskService.getAllTasks();
+            if (taskList.isEmpty()) {
+                response.put("error", "没有找到任务进行测试");
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            var task = taskList.get(0);
+            response.put("testTask", "测试任务ID: " + task.getId() + ", 任务名称: " + task.getTaskName() + ", 当前页码: " + task.getCurrentPage() + ", 当前项索引: " + task.getCurrentItemIndex());
+            
+            // 测试任务进度更新
+            try {
+                int testPage = (task.getCurrentPage() != null ? task.getCurrentPage() : 1) + 1;
+                int testItemIndex = (task.getCurrentItemIndex() != null ? task.getCurrentItemIndex() : 0) + 1;
+                
+                crawlTaskService.updateTaskProgress(task.getId(), testPage, testItemIndex);
+                response.put("taskUpdate", "✅ 任务进度更新调用成功，目标: 第" + testPage + "页，第" + testItemIndex + "项");
+            } catch (Exception e) {
+                response.put("taskUpdate", "❌ 任务进度更新异常: " + e.getMessage());
+                e.printStackTrace();
+            }
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    /**
+     * 🆕 测试新的验证码处理逻辑
+     */
+    @PostMapping("/test-captcha-handler")
+    public ResponseEntity<?> testCaptchaHandler() {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            
+            response.put("message", "🧪 新的验证码处理逻辑测试");
+            response.put("features", List.of(
+                "✅ 支持重试限制（最多3次）",
+                "✅ 失败后返回 FAILED 状态而不是一直卡着",
+                "✅ 区分处理失败和被阻止的情况",
+                "✅ 保持向后兼容性"
+            ));
+            
+            response.put("captchaResults", List.of(
+                "SUCCESS - 验证码处理成功",
+                "FAILED - 验证码处理失败，但可以继续爬取",
+                "BLOCKED - 验证码被阻止，需要人工干预"
+            ));
+            
+            response.put("usage", "现在验证码处理失败时会返回 FAILED 状态，爬虫会继续处理下一个商品，而不是一直卡着");
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
         }
     }
 }

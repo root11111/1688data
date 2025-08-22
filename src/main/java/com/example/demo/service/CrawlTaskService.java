@@ -7,6 +7,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +24,9 @@ public class CrawlTaskService {
     
     @Autowired
     private CrawlTaskRepository crawlTaskRepository;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
     
     @Autowired
     @Lazy
@@ -90,8 +95,11 @@ public class CrawlTaskService {
         if (task.getCurrentPage() == null || task.getCurrentPage() <= 0) {
             task.setCurrentPage(1);  // 新任务从第1页开始
             task.setCurrentItemIndex(0);  // 新任务从第0项开始
+            System.out.println("🔄 新任务或重置任务，设置初始进度: 第1页，第0项");
+        } else {
+            // 如果 currentPage > 0，说明有进度，保持原有进度（断点续传）
+            System.out.println("🔄 断点续传任务，保持原有进度: 第" + task.getCurrentPage() + "页，第" + task.getCurrentItemIndex() + "项");
         }
-        // 如果 currentPage > 0，说明有进度，保持原有进度（断点续传）
         
         crawlTaskRepository.save(task);
         
@@ -158,16 +166,137 @@ public class CrawlTaskService {
     }
     
     /**
-     * 更新任务进度
+     * 更新任务进度 - 重写版本，使用更直接的方式确保数据保存
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void updateTaskProgress(Long taskId, Integer currentPage, Integer currentItemIndex) {
-        Optional<CrawlTask> optional = crawlTaskRepository.findById(taskId);
-        if (optional.isPresent()) {
-            CrawlTask task = optional.get();
-            task.setCurrentPage(currentPage);
-            task.setCurrentItemIndex(currentItemIndex);
-            crawlTaskRepository.save(task);
+        try {
+            System.out.println("🔄 CrawlTaskService.updateTaskProgress 被调用:");
+            System.out.println("   - 任务ID: " + taskId);
+            System.out.println("   - 目标页码: " + currentPage);
+            System.out.println("   - 目标项索引: " + currentItemIndex);
+            
+            // 🆕 添加参数验证
+            if (taskId == null) {
+                System.err.println("❌ 任务ID为null");
+                return;
+            }
+            if (currentPage == null) {
+                System.err.println("❌ 目标页码为null");
+                return;
+            }
+            if (currentItemIndex == null) {
+                System.err.println("❌ 目标项索引为null");
+                return;
+            }
+            
+            // 先查询一次，确认当前状态
+            Optional<CrawlTask> beforeOptional = crawlTaskRepository.findById(taskId);
+            if (beforeOptional.isPresent()) {
+                CrawlTask beforeTask = beforeOptional.get();
+                System.out.println("🔍 更新前数据库状态:");
+                System.out.println("   - 任务名称: " + beforeTask.getTaskName());
+                System.out.println("   - 当前页码: " + beforeTask.getCurrentPage());
+                System.out.println("   - 当前项索引: " + beforeTask.getCurrentItemIndex());
+            }
+            
+            // 🆕 使用 EntityManager 直接更新，确保数据被正确保存
+            String updateQuery = "UPDATE CrawlTask t SET t.currentPage = :currentPage, t.currentItemIndex = :currentItemIndex, t.updatedTime = :updatedTime WHERE t.id = :taskId";
+            int updatedRows = entityManager.createQuery(updateQuery)
+                    .setParameter("currentPage", currentPage)
+                    .setParameter("currentItemIndex", currentItemIndex)
+                    .setParameter("updatedTime", LocalDateTime.now())
+                    .setParameter("taskId", taskId)
+                    .executeUpdate();
+            
+            System.out.println("🔄 直接SQL更新执行结果:");
+            System.out.println("   - 更新的行数: " + updatedRows);
+            
+            if (updatedRows > 0) {
+                // 强制刷新持久化上下文
+                entityManager.flush();
+                System.out.println("✅ EntityManager flush 完成");
+
+            } else {
+                System.err.println("❌ SQL更新未影响任何行，可能任务不存在");
+            }
+            
+        } catch (Exception e) {
+            System.err.println("❌ 更新任务进度失败: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // 重新抛出异常，确保事务回滚
+        }
+    }
+    
+    /**
+     * 🆕 测试方法：验证两个表的同步更新
+     */
+    public void testSyncUpdate(Long taskId) {
+        try {
+            System.out.println("🧪 开始测试两个表的同步更新...");
+            
+            // 获取当前任务状态
+            Optional<CrawlTask> taskOpt = getTaskById(taskId);
+            if (taskOpt.isPresent()) {
+                CrawlTask task = taskOpt.get();
+                System.out.println("🔍 测试前任务状态:");
+                System.out.println("   - 任务名称: " + task.getTaskName());
+                System.out.println("   - 当前页码: " + task.getCurrentPage());
+                System.out.println("   - 当前项索引: " + task.getCurrentItemIndex());
+                
+                // 测试更新 - 使用不同的值
+                int testPage = (task.getCurrentPage() != null ? task.getCurrentPage() : 1) + 1;
+                int testItemIndex = (task.getCurrentItemIndex() != null ? task.getCurrentItemIndex() : 0) + 1;
+                
+                System.out.println("🧪 测试更新到: 第" + testPage + "页，第" + testItemIndex + "项");
+                updateTaskProgress(taskId, testPage, testItemIndex);
+                
+                // 等待一下，确保事务提交
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+                
+                // 验证更新结果
+                Optional<CrawlTask> updatedTaskOpt = getTaskById(taskId);
+                if (updatedTaskOpt.isPresent()) {
+                    CrawlTask updatedTask = updatedTaskOpt.get();
+                    System.out.println("🔍 测试后任务状态:");
+                    System.out.println("   - 任务名称: " + updatedTask.getTaskName());
+                    System.out.println("   - 当前页码: " + updatedTask.getCurrentPage());
+                    System.out.println("   - 当前项索引: " + updatedTask.getCurrentItemIndex());
+                    
+                    if (updatedTask.getCurrentPage().equals(testPage) && updatedTask.getCurrentItemIndex().equals(testItemIndex)) {
+                        System.out.println("✅ 测试成功！两个表同步更新正常");
+                    } else {
+                        System.err.println("❌ 测试失败！两个表同步更新异常");
+                        System.err.println("   - 期望页码: " + testPage + ", 实际: " + updatedTask.getCurrentPage());
+                        System.err.println("   - 期望项索引: " + testItemIndex + ", 实际: " + updatedTask.getCurrentItemIndex());
+                    }
+                }
+            } else {
+                System.err.println("❌ 测试失败！找不到任务ID: " + taskId);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("❌ 测试过程中出错: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * 🆕 强制刷新数据库状态
+     */
+    public void forceRefreshDatabase() {
+        try {
+            System.out.println("🔄 强制刷新数据库状态...");
+            // 强制刷新所有未提交的更改
+            crawlTaskRepository.flush();
+            System.out.println("✅ 数据库状态刷新完成");
+        } catch (Exception e) {
+            System.err.println("❌ 刷新数据库状态失败: " + e.getMessage());
+            e.printStackTrace();
         }
     }
     
